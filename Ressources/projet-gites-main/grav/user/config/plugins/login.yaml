@@ -1,4 +1,0 @@
-user_registration:
-  options:
-    send_notification_email: true
-    send_welcome_email: true

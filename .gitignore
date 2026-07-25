@@ -2,3 +2,28 @@
 .cache/
 __pycache__/
 *.pyc
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Local build/test artifacts
+*.log
+
+.git
+.github
+
+# Local reference projects
+/Ressources/
+
+
+README.md
+
+**/.git
+**/.gitignore
+**/docker-compose.yml
+**/compose.yml
