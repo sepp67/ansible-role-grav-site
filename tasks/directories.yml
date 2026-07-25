@@ -1,0 +1,27 @@
+---
+# Répertoires persistants montés en bind mount. Volontairement créés sans
+# 'mode' explicite : c'est grav-runtime lui-même (entrypoint.sh, fonction
+# fix_permissions) qui reprend la propriété en www-data (uid/gid 82) et fixe
+# les droits au premier démarrage du conteneur. Si le rôle imposait un mode
+# à chaque exécution, il échouerait aux exécutions suivantes : une fois la
+# propriété reprise par le conteneur, l'utilisateur Ansible n'a plus le
+# droit de chmod ces répertoires (constaté en test — voir tests/test.yml).
+# Sans 'mode', le module file ne touche aux droits qu'à la création, jamais
+# ensuite : le rôle n'a pas à connaître ni reproduire la logique du runtime,
+# seulement fournir des répertoires existants au premier déploiement.
+
+- name: "Créer la racine de l'instance"
+  ansible.builtin.file:
+    path: "{{ grav_base_directory }}"
+    state: directory
+    mode: "0755"
+
+- name: "Créer les répertoires persistants (pages, accounts, data, images)"  # noqa: risky-file-permissions
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+  loop:
+    - "{{ grav_pages_directory }}"
+    - "{{ grav_accounts_directory }}"
+    - "{{ grav_data_directory }}"
+    - "{{ grav_images_directory }}"

@@ -1,0 +1,19 @@
+<p>Nouvelle demande de contact reçue via le site.</p>
+
+<p><strong>Nom :</strong> {{ form.value('nom')|e }}</p>
+<p><strong>E-mail :</strong> {{ form.value('email')|e }}</p>
+{% if form.value('telephone') %}
+<p><strong>Téléphone :</strong> {{ form.value('telephone')|e }}</p>
+{% endif %}
+{% if form.value('date_arrivee') or form.value('date_depart') %}
+<p><strong>Dates souhaitées :</strong>
+    {% if form.value('date_arrivee') %}du {{ form.value('date_arrivee')|e }}{% endif %}
+    {% if form.value('date_depart') %} au {{ form.value('date_depart')|e }}{% endif %}
+</p>
+{% endif %}
+<p><strong>Message :</strong><br>{{ form.value('message')|e|nl2br }}</p>
+
+{% if form.value('gite') %}
+<hr>
+<p><small>Gîte concerné : {{ form.value('gite')|e }}</small></p>
+{% endif %}

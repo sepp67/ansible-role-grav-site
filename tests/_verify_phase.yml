@@ -1,0 +1,60 @@
+---
+# Helper de vérification post-déploiement, inclus après chaque phase de
+# tests/test.yml. Paramètres attendus :
+#   grav_phase_label        — libellé affiché dans le nom de chaque tâche
+#   grav_expected_version    — version qui doit être réellement en exécution
+#   grav_expected_log_count  — nombre de lignes attendu dans deployed_versions.log
+
+- name: "Vérifier l'image réellement en exécution (docker inspect) — {{ grav_phase_label }}"
+  ansible.builtin.command:
+    cmd: "docker inspect --format='{{ '{{' }}.Config.Image{{ '}}' }}' {{ grav_container_name }}"
+  register: grav_running_image
+  changed_when: false
+
+- name: "Confirmer que l'image en exécution est la version attendue — {{ grav_phase_label }}"
+  ansible.builtin.assert:
+    that:
+      - grav_running_image.stdout | trim == (grav_image ~ ':' ~ grav_expected_version)
+    fail_msg: >-
+      Image en exécution ({{ grav_running_image.stdout | trim }}) différente
+      de la version attendue ({{ grav_image }}:{{ grav_expected_version }}).
+    quiet: true
+
+- name: "Vérifier que le marqueur persistant est intact — {{ grav_phase_label }}"
+  ansible.builtin.command:
+    cmd: "docker exec {{ grav_container_name }} cat /var/www/html/user/pages/marker.txt"
+  register: grav_marker_check
+  changed_when: false
+
+- name: "Confirmer le contenu du marqueur — {{ grav_phase_label }}"
+  ansible.builtin.assert:
+    that:
+      - grav_marker_check.stdout | trim == 'marker'
+    fail_msg: "Le marqueur déposé dans user/pages a disparu."
+    quiet: true
+
+- name: "Vérifier le marqueur de version .deployed_version — {{ grav_phase_label }}"
+  ansible.builtin.slurp:
+    path: "{{ grav_base_directory }}/.deployed_version"
+  register: grav_version_file
+
+- name: "Confirmer le contenu de .deployed_version — {{ grav_phase_label }}"
+  ansible.builtin.assert:
+    that:
+      - (grav_version_file.content | b64decode | trim) == (grav_image ~ ':' ~ grav_expected_version)
+    quiet: true
+
+- name: "Compter les lignes du journal des versions — {{ grav_phase_label }}"
+  ansible.builtin.command:
+    cmd: "wc -l {{ grav_base_directory }}/deployed_versions.log"
+  register: grav_log_count_raw
+  changed_when: false
+
+- name: "Confirmer le nombre de lignes du journal (idempotence) — {{ grav_phase_label }}"
+  ansible.builtin.assert:
+    that:
+      - (grav_log_count_raw.stdout | trim | split(' ') | first | int) == grav_expected_log_count
+    fail_msg: >-
+      deployed_versions.log contient {{ grav_log_count_raw.stdout | trim }},
+      {{ grav_expected_log_count }} ligne(s) attendue(s).
+    quiet: true

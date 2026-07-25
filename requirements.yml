@@ -1,0 +1,7 @@
+---
+collections:
+  - name: community.docker
+    # community.docker 5.x requiert ansible-core >= 2.17 (voir
+    # meta/main.yml min_ansible_version) — bornes alignées et testées
+    # ensemble (community.docker 5.2.1 / ansible-core 2.17.14).
+    version: ">=5.0.0,<6.0.0"

@@ -1,0 +1,14 @@
+{% if photos is not empty %}
+<section class="galerie-section">
+    <h2>{{ libelle }}</h2>
+    <div class="galerie-section-grid">
+        {% for photo in photos %}
+            {% set img = gite.media[photo.fichier].resize(700).quality(80) %}
+            {% do img.derivatives(300, 700, 200) %}
+            <figure class="galerie-section-item">
+                <img src="{{ img.url(false) }}" srcset="{{ img.srcset }}" sizes="(max-width: 720px) 45vw, 260px" alt="{{ photo.alt|default('Photographie du gîte') }}" loading="lazy">
+            </figure>
+        {% endfor %}
+    </div>
+</section>
+{% endif %}

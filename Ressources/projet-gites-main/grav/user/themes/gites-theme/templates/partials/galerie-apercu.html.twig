@@ -1,0 +1,46 @@
+{% set toutes_photos = page.header.galerie.photos ?? [] %}
+{% set photos_vitrine = toutes_photos|filter(p => p.vitrine is defined)|sort((a, b) => a.vitrine <=> b.vitrine) %}
+
+{% if photos_vitrine|length < 5 %}
+    {% set fichiers_retenus = photos_vitrine|map(p => p.fichier) %}
+    {% for photo in toutes_photos %}
+        {% if photos_vitrine|length < 5 and photo.fichier not in fichiers_retenus %}
+            {% set photos_vitrine = photos_vitrine|merge([photo]) %}
+            {% set fichiers_retenus = fichiers_retenus|merge([photo.fichier]) %}
+        {% endif %}
+    {% endfor %}
+{% endif %}
+
+{% set photos_vitrine = photos_vitrine|slice(0, 5) %}
+{% set url_toutes_photos = page.url ~ '/photos' %}
+{% set grande = photos_vitrine[0] ?? null %}
+{% set vignettes = photos_vitrine|slice(1, 4) %}
+
+{% if grande %}
+<div class="galerie-apercu">
+    <a href="{{ url_toutes_photos }}" class="galerie-apercu-grande{{ vignettes is empty ? ' galerie-apercu-voir-tout' : '' }}">
+        {% set img = page.media[grande.fichier].resize(1000).quality(80) %}
+        {% do img.derivatives(500, 1000, 250) %}
+        <img src="{{ img.url(false) }}" srcset="{{ img.srcset }}" sizes="(max-width: 720px) 100vw, 50vw" alt="{{ grande.alt|default('Photographie du gîte') }}" fetchpriority="high">
+        {% if vignettes is empty %}
+            <span class="galerie-apercu-voir-tout-label">Voir toutes les photos</span>
+        {% else %}
+            <span class="galerie-apercu-voir-tout-label galerie-apercu-voir-tout-label--mobile">Voir toutes les photos</span>
+        {% endif %}
+    </a>
+    {% if vignettes is not empty %}
+    <div class="galerie-apercu-vignettes">
+        {% for photo in vignettes %}
+            <a href="{{ url_toutes_photos }}" class="galerie-apercu-vignette{{ loop.last ? ' galerie-apercu-voir-tout' : '' }}">
+                {% set img = page.media[photo.fichier].resize(500).quality(80) %}
+                {% do img.derivatives(200, 500, 150) %}
+                <img src="{{ img.url(false) }}" srcset="{{ img.srcset }}" sizes="(max-width: 720px) 0px, 25vw" alt="{{ photo.alt|default('Photographie du gîte') }}" loading="lazy">
+                {% if loop.last %}
+                    <span class="galerie-apercu-voir-tout-label">Voir toutes les photos</span>
+                {% endif %}
+            </a>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+{% endif %}

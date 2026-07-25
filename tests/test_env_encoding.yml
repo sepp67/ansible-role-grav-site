@@ -1,0 +1,101 @@
+---
+# Test dédié : la génération de grav.env (format raw, voir
+# templates/grav.env.j2) doit restituer une valeur STRICTEMENT identique
+# pour un mot de passe contenant simultanément : $, #, espaces, guillemets
+# doubles, guillemets simples et un antislash.
+#
+# La valeur elle-même n'est jamais affichée : toutes les tâches qui la
+# manipulent sont sous no_log: true, seule la comparaison pass/fail est
+# visible dans la sortie du playbook.
+#
+# Usage (depuis la racine du dépôt) :
+#   cd tests && ansible-playbook -i inventory test_env_encoding.yml
+
+- name: "Test de l'encodage des caractères spéciaux dans grav.env"
+  hosts: localhost
+  connection: local
+
+  vars:
+    grav_manage_docker: false
+    grav_image: "ghcr.io/sepp67/grav-runtime"
+    grav_version: "1.0.2"
+    grav_container_name: "grav-site-envtest"
+    grav_base_directory: "/tmp/grav-site-envtest"
+    grav_bind_address: "127.0.0.1"
+    grav_http_port: 18082
+    grav_admin_user: "admin"
+    # Couvre : $ (dollar), # (dièse), espaces, " (guillemet double),
+    # ' (guillemet simple), \ (antislash) — dans une seule valeur.
+    grav_admin_password: 'P@ss $ecret #1 "double" ''single'' back\slash end'
+    grav_admin_email: "admin@example.com"
+    # Avec un compte admin créé mais aucune page, "/" répond 404 (le
+    # redirect automatique vers /admin de grav-runtime ne se produit que
+    # tant qu'aucun compte n'existe) — /admin répond 200 directement, sans
+    # rapport avec l'objet de ce test (l'encodage de grav.env).
+    grav_site_check_path: "/admin"
+
+  tasks:
+    - name: "Nettoyer un éventuel reliquat d'une exécution précédente"
+      block:
+        - name: "Supprimer un éventuel conteneur/volumes précédents"
+          community.docker.docker_compose_v2:
+            project_src: "{{ grav_base_directory }}"
+            state: absent
+          when: (grav_base_directory ~ '/docker-compose.yml') is file
+
+        - name: "Supprimer un éventuel répertoire précédent (via un conteneur root)"
+          ansible.builtin.command:
+            cmd: >-
+              docker run --rm -v {{ grav_base_directory | dirname }}:/cleanup
+              alpine rm -rf /cleanup/{{ grav_base_directory | basename }}
+          when: (grav_base_directory) is directory
+          changed_when: true
+      rescue:
+        - name: "Ignorer les erreurs de nettoyage (rien à nettoyer)"
+          ansible.builtin.debug:
+            msg: "Rien à nettoyer."
+
+    - name: "Déployer avec un mot de passe contenant des caractères spéciaux"
+      ansible.builtin.include_role:
+        name: ansible-role-grav-site
+        public: true
+
+    - name: "Relire GRAV_ADMIN_PASSWORD tel que reçu par le conteneur"
+      ansible.builtin.command:
+        cmd: "docker exec {{ grav_container_name }} printenv GRAV_ADMIN_PASSWORD"
+      register: grav_password_in_container
+      changed_when: false
+      no_log: true
+
+    - name: "Comparer la valeur reçue à la valeur source (comparaison masquée)"
+      ansible.builtin.assert:
+        that:
+          - grav_password_in_container.stdout == grav_admin_password
+        fail_msg: >-
+          La valeur de GRAV_ADMIN_PASSWORD restituée par le conteneur ne
+          correspond pas exactement à la valeur source — grav.env (format
+          raw) a altéré un caractère spécial.
+        success_msg: >-
+          GRAV_ADMIN_PASSWORD restitué strictement identique ($, #, espaces,
+          guillemets doubles et simples, antislash tous préservés).
+        quiet: true
+      no_log: true
+
+    - name: "Vérifier que le compte admin a bien été créé avec ce mot de passe (bootstrap réussi)"
+      ansible.builtin.command:
+        cmd: "docker exec {{ grav_container_name }} test -f /var/www/html/user/accounts/admin.yaml"
+      changed_when: false
+
+    - name: "Nettoyer l'environnement de test"
+      block:
+        - name: "Arrêter et supprimer le conteneur de test"
+          community.docker.docker_compose_v2:
+            project_src: "{{ grav_base_directory }}"
+            state: absent
+
+        - name: "Supprimer le répertoire de test (via un conteneur root)"
+          ansible.builtin.command:
+            cmd: >-
+              docker run --rm -v {{ grav_base_directory | dirname }}:/cleanup
+              alpine rm -rf /cleanup/{{ grav_base_directory | basename }}
+          changed_when: true

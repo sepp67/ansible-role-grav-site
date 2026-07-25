@@ -1,0 +1,70 @@
+{% extends 'partials/base.html.twig' %}
+
+{% block content %}
+    <article class="content-item gerer-disponibilites">
+        <h1>Gérer mes disponibilités</h1>
+
+        {% if not grav.user.authenticated %}
+            <p>Vous devez être connecté pour accéder à cette page. <a href="/login">Se connecter</a></p>
+        {% else %}
+            {% set mon_gite = null %}
+            {% for gite in page.find('/gites').children() %}
+                {% if gite.header.proprietaire == grav.user.username %}
+                    {% set mon_gite = gite %}
+                {% endif %}
+            {% endfor %}
+
+            {% if mon_gite is null %}
+                <p>Aucun gîte associé à votre compte.</p>
+            {% else %}
+                <h2>{{ mon_gite.title }}</h2>
+
+                <div class="instructions">
+                    <p>Votre gîte est <strong>disponible par défaut</strong>. Indiquez ci-dessous uniquement les périodes pendant lesquelles il <strong>n'est pas disponible</strong> (déjà loué ailleurs, usage personnel, travaux…).</p>
+                    <p>Utilisez le formulaire « Ajouter une période indisponible » pour déclarer une nouvelle période, et le bouton « Supprimer » à côté d'une période existante pour la retirer.</p>
+                </div>
+
+                {% include 'partials/calendrier.html.twig' with {
+                    mois: grav.uri.query('mois'),
+                    periodes_indisponibles: disponibilites_periodes(mon_gite)
+                } %}
+
+                {% set periodes = disponibilites_periodes(mon_gite) %}
+                {% if periodes %}
+                    <h3>Périodes indisponibles actuelles</h3>
+                    <ul class="periodes-liste">
+                        {% for periode in periodes %}
+                            <li>
+                                {{ periode.debut }} → {{ periode.fin }}
+                                <form method="post" action="{{ page.url }}" class="periode-supprimer-form">
+                                    <input type="hidden" name="task" value="calendrier.remove_period">
+                                    <input type="hidden" name="index" value="{{ loop.index0 }}">
+                                    {{ nonce_field('calendrier-form')|raw }}
+                                    <button type="submit">Supprimer</button>
+                                </form>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                {% endif %}
+
+                <h3>Ajouter une période indisponible</h3>
+                <form method="post" action="{{ page.url }}" class="periode-form">
+                    <div class="periode-form-champ">
+                        <label for="debut">Début</label>
+                        <input type="date" name="debut" id="debut" required>
+                    </div>
+
+                    <div class="periode-form-champ">
+                        <label for="fin">Fin</label>
+                        <input type="date" name="fin" id="fin" required>
+                    </div>
+
+                    <input type="hidden" name="task" value="calendrier.add_period">
+                    {{ nonce_field('calendrier-form')|raw }}
+
+                    <button type="submit">Ajouter</button>
+                </form>
+            {% endif %}
+        {% endif %}
+    </article>
+{% endblock %}

@@ -1,0 +1,19 @@
+{% extends 'partials/base.html.twig' %}
+
+{% block content %}
+    {% set gite = page.parent %}
+    <article class="content-item gite-photos">
+        <a href="{{ gite.url }}" class="gite-photos-retour">&laquo; Retour à la fiche du gîte</a>
+        <h1>Toutes les photos — {{ gite.title }}</h1>
+
+        {% set toutes_photos = gite.header.galerie.photos ?? [] %}
+        {% set taxonomie = grav.config.get('gites-photos-taxonomie') %}
+
+        {% for cle, libelle in taxonomie %}
+            {% set photos_espace = toutes_photos
+                |filter(p => p.espace == cle)
+                |sort((a, b) => (a.ordre ?? 0) <=> (b.ordre ?? 0)) %}
+            {% include 'partials/galerie-section.html.twig' with { libelle: libelle, photos: photos_espace } %}
+        {% endfor %}
+    </article>
+{% endblock %}

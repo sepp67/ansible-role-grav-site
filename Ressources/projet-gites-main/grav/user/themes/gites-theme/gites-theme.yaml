@@ -1,0 +1,16 @@
+name: Gîtes Theme
+version: 0.1.0
+description: >
+  Thème du projet, hérite du thème officiel Quark 2 (grav/user/themes/quark2)
+  via chaînage explicite du flux "theme://" (voir clé streams ci-dessous ;
+  mécanisme réellement documenté dans le code source de Grav, contrairement à
+  la clé extends@ initialement utilisée puis retirée après échec constaté en
+  TASK-002-02-01). Squelette minimal au-delà de gite-item.html.twig.
+
+streams:
+  schemes:
+    theme:
+      type: ReadOnlyStream
+      paths:
+        - user://themes/gites-theme
+        - user://themes/quark2

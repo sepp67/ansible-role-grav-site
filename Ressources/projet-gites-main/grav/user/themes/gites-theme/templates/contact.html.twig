@@ -1,0 +1,11 @@
+{% extends 'partials/base.html.twig' %}
+
+{% block content %}
+    <article class="content-item">
+        {{ page.content|raw }}
+
+        <section class="gite-contact">
+            {% include 'forms/form.html.twig' with { form: forms('contact-form') } %}
+        </section>
+    </article>
+{% endblock %}

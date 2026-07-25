@@ -1,0 +1,125 @@
+---
+# Validation précoce : échouer côté Ansible avec un message clair plutôt que
+# de laisser le conteneur refuser de démarrer (le runtime applique la même
+# politique tri-state sur le bootstrap admin, voir grav-runtime README
+# "Bootstrap administrateur").
+
+- name: "Vérifier que l'identité de l'application déployée est renseignée"
+  ansible.builtin.assert:
+    that:
+      - grav_image | length > 0
+      - grav_version | length > 0
+    fail_msg: >-
+      grav_image et grav_version sont obligatoires : ce sont les deux seules
+      variables qui identifient l'application déployée (ex. grav_image=
+      "ghcr.io/sepp67/projet-gites", grav_version="1.0.0").
+    quiet: true
+
+- name: "Interdire le tag 'latest'"
+  ansible.builtin.assert:
+    that:
+      - grav_version != 'latest'
+    fail_msg: >-
+      grav_version ne doit jamais être "latest" en production — une image
+      applicative épingle toujours une version explicite (voir le README de
+      grav-runtime, section "Versionnement"). Utilisez un tag précis
+      (ex. "1.0.0").
+    quiet: true
+
+- name: "Valider le nom de conteneur (grav_container_name)"
+  ansible.builtin.assert:
+    that:
+      - grav_container_name is regex('^[A-Za-z0-9][A-Za-z0-9._-]*$')
+      - "'..' not in grav_container_name"
+      - "'/' not in grav_container_name"
+      - "':' not in grav_container_name"
+    fail_msg: >-
+      grav_container_name="{{ grav_container_name }}" invalide : doit
+      commencer par un caractère alphanumérique et ne contenir que des
+      lettres, chiffres, ".", "_" ou "-" — jamais "..", "/" ni ":".
+    quiet: true
+
+- name: "Valider grav_state"
+  ansible.builtin.assert:
+    that:
+      - grav_state in ['started', 'stopped', 'restarted']
+    fail_msg: >-
+      grav_state="{{ grav_state }}" invalide : doit être 'started',
+      'stopped' ou 'restarted'.
+    quiet: true
+
+- name: "Valider grav_http_port"
+  ansible.builtin.assert:
+    that:
+      - grav_http_port | int >= 1
+      - grav_http_port | int <= 65535
+    fail_msg: >-
+      grav_http_port="{{ grav_http_port }}" invalide : doit être un port TCP
+      valide (1-65535).
+    quiet: true
+
+- name: "Valider grav_healthcheck_retries et grav_deploy_wait_retries"
+  ansible.builtin.assert:
+    that:
+      - grav_healthcheck_retries | int > 0
+      - grav_deploy_wait_retries | int > 0
+    fail_msg: >-
+      grav_healthcheck_retries ({{ grav_healthcheck_retries }}) et
+      grav_deploy_wait_retries ({{ grav_deploy_wait_retries }}) doivent être
+      des entiers strictement positifs.
+    quiet: true
+
+- name: "Valider grav_site_check_host et grav_site_check_path"
+  ansible.builtin.assert:
+    that:
+      - grav_site_check_host | length > 0
+      - grav_site_check_path is match('/')
+    fail_msg: >-
+      grav_site_check_host doit être non vide (actuellement
+      "{{ grav_site_check_host }}") et grav_site_check_path doit commencer
+      par "/" (actuellement "{{ grav_site_check_path }}").
+    quiet: true
+
+- name: "Calculer le nombre de variables admin renseignées"
+  ansible.builtin.set_fact:
+    _grav_admin_vars_set: >-
+      {{ ([grav_admin_user, grav_admin_password, grav_admin_email]
+          | reject('equalto', '') | list | length) | int }}
+
+- name: "Vérifier la politique tri-state des identifiants admin (grav-runtime)"
+  ansible.builtin.assert:
+    that:
+      - _grav_admin_vars_set | int == 0 or _grav_admin_vars_set | int == 3
+    fail_msg: >-
+      grav_admin_user, grav_admin_password et grav_admin_email doivent être
+      soit toutes les trois définies (bootstrap admin activé), soit toutes
+      les trois absentes (bootstrap désactivé) — c'est la politique
+      appliquée par grav-runtime lui-même ; un état partiel ferait échouer
+      le démarrage du conteneur.
+    quiet: true
+
+# Rassemble toutes les valeurs qui finissent dans grav.env (voir
+# templates/grav.env.j2) : même en format `raw`, une ligne = une variable —
+# un retour à la ligne dans une valeur couperait/corromprait le fichier.
+- name: "Rassembler les valeurs destinées à grav.env"
+  ansible.builtin.set_fact:
+    _grav_env_values: >-
+      {{ [grav_admin_user, grav_admin_password, grav_admin_email,
+          grav_admin_fullname, grav_admin_title, grav_admin_language,
+          grav_timezone] + (grav_extra_environment.values() | list) }}
+  no_log: true
+
+- name: "Interdire les retours à la ligne dans les valeurs destinées à grav.env"
+  ansible.builtin.assert:
+    that:
+      - "'\n' not in (item | string)"
+      - "'\r' not in (item | string)"
+    fail_msg: >-
+      Une valeur destinée à grav.env (grav_admin_*, grav_timezone ou
+      grav_extra_environment) contient un retour à la ligne — interdit, une
+      ligne de grav.env ne peut contenir qu'une seule variable.
+    quiet: true
+  loop: "{{ _grav_env_values }}"
+  loop_control:
+    label: "(valeur masquée)"
+  no_log: true

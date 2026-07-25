@@ -1,0 +1,58 @@
+---
+# Enregistre la version effectivement déployée et validée par le
+# healthcheck. Une mise à jour ou un rollback consistent simplement à
+# rejouer le rôle avec un grav_version différent : ce fichier ne sert qu'à
+# la traçabilité, il ne pilote aucune logique du rôle.
+
+- name: "Enregistrer la version actuellement déployée"
+  ansible.builtin.copy:
+    content: |
+      {{ grav_image }}:{{ grav_version }}
+    dest: "{{ grav_base_directory }}/.deployed_version"
+    mode: "0644"
+  register: grav_version_marker
+
+# N'ajoute une ligne au journal que si la référence image:version déployée a
+# réellement changé (marqueur ci-dessus effectivement modifié) — jamais sur
+# un redéploiement de la même version ou un simple grav_state: restarted.
+#
+# Lecture + réécriture complète (slurp puis copy) plutôt que lineinfile :
+# lineinfile déduplique par CONTENU EXACT de ligne dans tout le fichier, pas
+# par simple ajout — un rollback vers une version déjà vue précédemment (ex.
+# A -> B -> A) produirait une ligne strictement identique à une entrée
+# passée (même "image:version", et ansible_date_time est figé pour toute la
+# durée du play) et lineinfile refuserait silencieusement de l'ajouter
+# (constaté en test, voir tests/_verify_phase.yml). slurp+copy s'exécutent
+# tous deux sur l'hôte cible (jamais sur le contrôleur, indispensable pour
+# un déploiement distant) et n'interpolent aucune valeur dans un shell : pas
+# de risque d'injection même si grav_image/grav_version contenaient des
+# métacaractères shell.
+# noqa: no-handler — voir la justification ci-dessus : doit s'exécuter
+# immédiatement pour que tests/test.yml puisse vérifier le journal entre
+# chaque inclusion du rôle dans le même play.
+- name: "Lire le journal des déploiements existant"  # noqa: no-handler
+  ansible.builtin.slurp:
+    path: "{{ grav_base_directory }}/deployed_versions.log"
+  register: grav_existing_log
+  when: grav_version_marker.changed
+  failed_when: false
+
+# Important : Jinja2 n'interprète PAS "\n" comme une séquence d'échappement
+# dans ses propres littéraux de chaîne (constaté en test — voir plus bas) ;
+# seul un scalaire YAML *entre guillemets doubles*, sur une seule ligne
+# physique, fait convertir "\n" en un vrai saut de ligne (traitement fait
+# par le parseur YAML avant que Jinja ne s'exécute). D'où : contenu
+# précédent isolé dans une variable courte (pour rester sous la limite de
+# longueur de ligne), puis une unique ligne "content:" entre guillemets
+# doubles ci-dessous — jamais de bloc replié (>-) pour cette valeur.
+- name: "Extraire le contenu existant du journal"  # noqa: no-handler
+  ansible.builtin.set_fact:
+    _grav_existing_log_content: "{{ grav_existing_log.content | default('') | b64decode }}"
+  when: grav_version_marker.changed
+
+- name: "Ajouter la version au journal des déploiements"  # noqa: no-handler
+  ansible.builtin.copy:
+    content: "{{ _grav_existing_log_content }}{{ ansible_date_time.iso8601 }} {{ grav_image }}:{{ grav_version }}\n"
+    dest: "{{ grav_base_directory }}/deployed_versions.log"
+    mode: "0644"
+  when: grav_version_marker.changed

@@ -1,0 +1,28 @@
+---
+- name: "Déployer le fichier docker-compose.yml générique"
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ grav_base_directory }}/docker-compose.yml"
+    mode: "0644"
+
+- name: "Déployer le fichier grav.env (variables d'environnement du conteneur)"
+  ansible.builtin.template:
+    src: grav.env.j2
+    dest: "{{ grav_base_directory }}/grav.env"
+    mode: "0600"
+  no_log: true
+
+- name: "Télécharger l'image et (dé)marrer le conteneur"
+  community.docker.docker_compose_v2:
+    project_src: "{{ grav_base_directory }}"
+    state: "{{ 'present' if grav_state == 'started' else grav_state }}"
+    pull: "{{ 'always' if grav_state == 'started' else 'policy' }}"
+    recreate: auto
+  register: grav_compose_result
+  when: grav_state != 'stopped'
+
+- name: "Arrêter le conteneur sans supprimer les données persistantes"
+  community.docker.docker_compose_v2:
+    project_src: "{{ grav_base_directory }}"
+    state: stopped
+  when: grav_state == 'stopped'

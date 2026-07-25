@@ -1,0 +1,19 @@
+---
+# Quand grav_manage_docker: false, le rôle n'installe rien mais ne doit pas
+# non plus supposer silencieusement que Docker est prêt : une absence de
+# Docker Engine ou du plugin Compose v2 doit échouer ici, tôt et clairement,
+# plutôt que plus loin dans tasks/deploy.yml avec un message moins lisible.
+
+- name: "Vérifier que Docker Engine est installé et opérationnel"
+  ansible.builtin.command:
+    cmd: "docker version --format '{{ '{{' }}.Server.Version{{ '}}' }}'"
+  register: grav_docker_engine_check
+  changed_when: false
+  failed_when: grav_docker_engine_check.rc != 0
+
+- name: "Vérifier que le plugin Docker Compose v2 est installé et opérationnel"
+  ansible.builtin.command:
+    cmd: "docker compose version"
+  register: grav_docker_compose_check
+  changed_when: false
+  failed_when: grav_docker_compose_check.rc != 0

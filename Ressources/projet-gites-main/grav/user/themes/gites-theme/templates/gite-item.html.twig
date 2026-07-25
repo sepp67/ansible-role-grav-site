@@ -1,0 +1,70 @@
+{% extends 'partials/base.html.twig' %}
+
+{% block content %}
+    <article class="content-item gite-item">
+        {{ page.content|raw }}
+
+        {% include 'partials/galerie-apercu.html.twig' %}
+
+        <section class="gite-details">
+            {% if page.header.capacite_max is defined or page.header.nombre_chambres is defined %}
+                <h2>Caractéristiques</h2>
+                <ul>
+                    {% if page.header.capacite_max is defined %}
+                        <li>Capacité maximale : {{ page.header.capacite_max }} personnes</li>
+                    {% endif %}
+                    {% if page.header.nombre_chambres is defined %}
+                        <li>Nombre de chambres : {{ page.header.nombre_chambres }}</li>
+                    {% endif %}
+                </ul>
+            {% endif %}
+
+            {% if page.header.equipements %}
+                <h2>Équipements</h2>
+                <ul>
+                    {% for equipement in page.header.equipements %}
+                        <li>{{ equipement }}</li>
+                    {% endfor %}
+                </ul>
+            {% endif %}
+
+            {% if page.header.informations_pratiques %}
+                <h2>Informations pratiques</h2>
+                <ul>
+                    {% if page.header.informations_pratiques.arrivee %}
+                        <li>Arrivée : {{ page.header.informations_pratiques.arrivee }}</li>
+                    {% endif %}
+                    {% if page.header.informations_pratiques.depart %}
+                        <li>Départ : {{ page.header.informations_pratiques.depart }}</li>
+                    {% endif %}
+                    <li>Animaux acceptés : {{ page.header.informations_pratiques.animaux_acceptes ? 'Oui' : 'Non' }}</li>
+                </ul>
+            {% endif %}
+
+            {% if page.header.coordonnees.adresse %}
+                <h2>Localisation</h2>
+                <p>{{ page.header.coordonnees.adresse }}</p>
+                {% include 'partials/carte.html.twig' with {
+                    latitude: page.header.coordonnees.latitude,
+                    longitude: page.header.coordonnees.longitude,
+                    marqueur: true
+                } %}
+            {% endif %}
+        </section>
+
+        <section class="gite-calendrier">
+            <h2>Disponibilités</h2>
+            {% include 'partials/calendrier.html.twig' with {
+                mois: grav.uri.query('mois'),
+                periodes_indisponibles: disponibilites_periodes(page)
+            } %}
+        </section>
+
+        <section class="gite-contact">
+            <h2>Contacter le propriétaire</h2>
+            {% set contact_form = forms('contact-form') %}
+            {% do contact_form.setData('gite', page.route) %}
+            {% include 'forms/form.html.twig' with { form: contact_form } %}
+        </section>
+    </article>
+{% endblock %}

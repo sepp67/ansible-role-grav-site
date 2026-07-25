@@ -1,0 +1,24 @@
+name: Calendrier Disponibilités
+slug: calendrier-disponibilites
+type: plugin
+version: 0.1.0
+description: Gestion des périodes d'indisponibilité des gîtes (modèle liste noire).
+icon: calendar
+author:
+  name: 'Équipe projet Gîtes (placeholder)'
+  email: 'contact@example.com'
+homepage: false
+demo: false
+keywords: calendrier, disponibilites, gites
+bugs: false
+docs: false
+license: MIT
+compatibility:
+  grav: ["2.0"]
+
+dependencies:
+  - { name: grav, version: '>=2.0.0' }
+
+form:
+  validation: loose
+  fields: {}

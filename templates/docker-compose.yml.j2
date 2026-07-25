@@ -1,0 +1,39 @@
+# Fichier généré par le rôle Ansible grav-site — ne pas modifier à la main,
+# les changements seraient écrasés au prochain déploiement.
+# Générique : ne contient aucune donnée propre à une application particulière.
+# Changer d'application ne requiert de modifier que grav_image / grav_version.
+
+services:
+  {{ grav_container_name }}:
+    image: "{{ grav_image }}:{{ grav_version }}"
+    container_name: "{{ grav_container_name }}"
+    restart: "{{ grav_restart_policy }}"
+
+    # format: raw — aucune interpolation ${VAR}/$VAR, aucun dépouillement de
+    # guillemets : chaque valeur de grav.env est prise littéralement (voir
+    # templates/grav.env.j2 pour le détail et la vérification empirique).
+    env_file:
+      - path: grav.env
+        format: raw
+
+    ports:
+      - "{{ grav_bind_address }}:{{ grav_http_port }}:80"
+
+    volumes:
+      - "{{ grav_pages_directory }}:/var/www/html/user/pages"
+      - "{{ grav_accounts_directory }}:/var/www/html/user/accounts"
+      - "{{ grav_data_directory }}:/var/www/html/user/data"
+      - "{{ grav_images_directory }}:/var/www/html/user/images"
+{% for secret in grav_secrets %}
+      - "{{ grav_secret_directory }}/{{ secret.name }}:/var/www/html/user/config/{{ secret.name }}:ro"
+{% endfor %}
+
+    # Mêmes paramètres que le HEALTHCHECK déjà défini dans l'image
+    # grav-runtime (docker/healthcheck.sh -> GET /healthz), déclarés ici
+    # explicitement pour rester ajustables sans reconstruire l'image.
+    healthcheck:
+      test: ["CMD", "/healthcheck.sh"]
+      interval: "{{ grav_healthcheck_interval }}"
+      timeout: "{{ grav_healthcheck_timeout }}"
+      start_period: "{{ grav_healthcheck_start_period }}"
+      retries: {{ grav_healthcheck_retries }}

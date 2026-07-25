@@ -1,0 +1,43 @@
+{% set mois_fr = ['', 'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'] %}
+{% set mois_affiche = mois|default("now"|date("Y-m")) %}
+{% set premier_jour_mois = (mois_affiche ~ "-01")|date("Y-m-01") %}
+{% set decalage = premier_jour_mois|date("N") %}
+{% set nb_jours = premier_jour_mois|date("t") %}
+{% set periodes_indisponibles = periodes_indisponibles|default([]) %}
+{% set mois_precedent = premier_jour_mois|date_modify("-1 month")|date("Y-m") %}
+{% set mois_suivant = premier_jour_mois|date_modify("+1 month")|date("Y-m") %}
+
+<style>
+.calendrier-grid td.jour-indisponible { background-color: #f8d7da; color: #842029; }
+</style>
+
+<div class="calendrier" id="calendrier">
+    <div class="calendrier-nav">
+        <a href="?mois={{ mois_precedent }}#calendrier">&laquo; Mois précédent</a>
+        <a href="?mois={{ mois_suivant }}#calendrier">Mois suivant &raquo;</a>
+    </div>
+    <h3>{{ mois_fr[premier_jour_mois|date("n")] }} {{ premier_jour_mois|date("Y") }}</h3>
+    <div class="calendrier-table-wrapper">
+    <table class="calendrier-grid">
+        <thead>
+            <tr><th>Lun</th><th>Mar</th><th>Mer</th><th>Jeu</th><th>Ven</th><th>Sam</th><th>Dim</th></tr>
+        </thead>
+        <tbody>
+            <tr>
+                {% for _ in 1..(decalage - 1) %}<td></td>{% endfor %}
+                {% for jour in 1..nb_jours %}
+                    {% if (decalage + jour - 2) % 7 == 0 and jour != 1 %}</tr><tr>{% endif %}
+                    {% set date_jour = premier_jour_mois|date("Y-m-") ~ "%02d"|format(jour) %}
+                    {% set indisponible = false %}
+                    {% for periode in periodes_indisponibles %}
+                        {% if date_jour >= periode.debut and date_jour <= periode.fin %}
+                            {% set indisponible = true %}
+                        {% endif %}
+                    {% endfor %}
+                    <td class="{{ indisponible ? 'jour-indisponible' : 'jour-disponible' }}">{{ jour }}</td>
+                {% endfor %}
+            </tr>
+        </tbody>
+    </table>
+    </div>
+</div>

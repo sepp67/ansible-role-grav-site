@@ -1,0 +1,333 @@
+/*
+ * Gîtes theme — surcharges de responsivité (TASK-003-03-05)
+ * Périmètre : calendrier de disponibilités et interface de gestion propriétaire.
+ * Alignées sur les breakpoints déjà utilisés par quark2/css/theme.css (720px, 860px).
+ */
+
+.calendrier-table-wrapper {
+  overflow-x: auto;
+}
+
+.gerer-disponibilites .periodes-liste {
+  list-style: none;
+  padding: 0;
+}
+
+.gerer-disponibilites .periodes-liste li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid rgba(34, 42, 53, 0.1);
+}
+
+.gerer-disponibilites form {
+  box-sizing: border-box;
+  max-width: 100%;
+}
+
+.gerer-disponibilites input[type="date"],
+.gerer-disponibilites button[type="submit"] {
+  box-sizing: border-box;
+  width: 100%;
+}
+
+@media (max-width: 720px) {
+  .calendrier-grid {
+    font-size: 0.8125rem;
+  }
+
+  .calendrier-grid td,
+  .calendrier-grid th {
+    padding: 0.25rem;
+  }
+
+  .gerer-disponibilites label {
+    display: block;
+    margin-top: 0.5rem;
+  }
+
+  .carte {
+    height: 250px;
+  }
+}
+
+/*
+ * Cartographie (TASK-007-01-02) — dimensionnement requis par Leaflet, qui ne
+ * s'affiche pas correctement sans hauteur explicite sur son conteneur.
+ */
+
+.carte {
+  height: 400px;
+  width: 100%;
+}
+
+/*
+ * Galerie photographique — grille d'aperçu de la fiche (TASK-GAL-02-04)
+ */
+
+#body-wrapper > .container > .content-item.gite-item {
+  max-width: 1200px;
+}
+
+.galerie-apercu {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-auto-flow: column;
+  gap: 0.5rem;
+  height: 400px;
+}
+
+.galerie-apercu-grande,
+.galerie-apercu-vignette {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  border-radius: var(--q2-radius);
+}
+
+.galerie-apercu-grande img,
+.galerie-apercu-vignette img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.galerie-apercu-vignettes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 0.5rem;
+}
+
+.galerie-apercu-voir-tout-label {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 0.5rem;
+  color: #fff;
+  font-weight: 600;
+  background: rgba(0, 0, 0, 0.7);
+}
+
+.galerie-apercu-grande:focus-visible,
+.galerie-apercu-vignette:focus-visible,
+.gite-photos-retour:focus-visible {
+  outline: 2px solid var(--q2-focus-ring);
+  outline-offset: 2px;
+}
+
+.gite-photos-retour {
+  display: inline-block;
+  transition: opacity 0.15s ease;
+}
+
+.gite-photos-retour:hover {
+  opacity: 0.75;
+}
+
+@media (max-width: 860px) {
+  .galerie-apercu {
+    height: 300px;
+  }
+}
+
+/*
+ * Galerie photographique — bascule mobile (TASK-GAL-02-05)
+ */
+
+.galerie-apercu-voir-tout-label--mobile {
+  display: none;
+}
+
+@media (max-width: 720px) {
+  .galerie-apercu {
+    display: block;
+  }
+
+  .galerie-apercu-grande {
+    display: block;
+    height: 260px;
+  }
+
+  .galerie-apercu-vignettes {
+    display: none;
+  }
+
+  .galerie-apercu-voir-tout-label--mobile {
+    display: flex;
+  }
+}
+
+/*
+ * Galerie photographique — grilles de section, page "Toutes les photos" (TASK-GAL-03-03)
+ * Grille fluide auto-fill/minmax : couvre desktop/tablette/mobile sans media
+ * query dédiée par palier (architecture §4.3).
+ */
+
+#body-wrapper > .container > .content-item.gite-photos {
+  max-width: 100%;
+}
+
+.galerie-section {
+  margin-top: 2rem;
+}
+
+.galerie-section-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 0.75rem;
+}
+
+.galerie-section-item {
+  margin: 0;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  border-radius: var(--q2-radius);
+}
+
+.galerie-section-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.gite-photos-retour {
+  display: inline-block;
+  margin-bottom: 1rem;
+}
+
+
+/*
+ * Formulaire de contact — dates côte à côte (correctif)
+ * Cible précisément les deux div.form-field contenant les champs
+ * date_arrivee / date_depart du formulaire de contact natif Grav (05.contact),
+ * sans modifier le template du plugin Form ni les autres champs.
+ */
+
+.form-field:has(input[name="data[date_arrivee]"]),
+.form-field:has(input[name="data[date_depart]"]) {
+  display: inline-block;
+  width: calc(50% - 0.5rem);
+  vertical-align: top;
+}
+
+.form-field:has(input[name="data[date_arrivee]"]) {
+  margin-right: 0.5rem;
+}
+
+@media (max-width: 720px) {
+  .form-field:has(input[name="data[date_arrivee]"]),
+  .form-field:has(input[name="data[date_depart]"]) {
+    display: block;
+    width: 100%;
+    margin-right: 0;
+  }
+}
+
+/*
+ * Page /gerer — dates côte à côte, formulaire "Ajouter une période
+ * indisponible" (correctif). Reste empilé en dessous de 721px (comportement
+ * mobile existant de TASK-003-03-05, inchangé).
+ */
+
+@media (min-width: 721px) {
+  .gerer-disponibilites .periode-form {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 1rem;
+  }
+
+  .gerer-disponibilites .periode-form-champ {
+    flex: 1 1 calc(50% - 0.5rem);
+  }
+
+  .gerer-disponibilites .periode-form-champ label {
+    display: block;
+  }
+}
+
+/*
+ * Correctif — boutons génériques invisibles au repos (bug pré-existant)
+ * theme.css (quark2) fait dépendre le fond des boutons génériques de
+ * --q2-accent, jamais définie ici (palette volontairement monochrome,
+ * accent-color laissé vide) : fond transparent + texte blanc/inverse
+ * toujours défini → texte invisible tant que :hover ne bascule pas sur
+ * une couleur Pico codée en dur, jamais remappée non plus. Fix : ancrer
+ * les boutons génériques sur les tokens monochromes déjà utilisés
+ * ailleurs dans le thème (cohérents clair/sombre), même rendu au repos
+ * et au survol.
+ */
+
+button,
+[type="submit"],
+[type="reset"] {
+  --pico-primary-background: #02659a;
+  --pico-primary-border: #02659a;
+  --pico-primary-hover-background: #02659a;
+  --pico-primary-hover-border: #02659a;
+}
+
+/*
+ * Correctif — bouton "Envoyer" du formulaire de contact (wrapper .buttons)
+ * theme.css (quark2) définit .form-wrapper .buttons button avec
+ * color: var(--q2-accent-contrast) et background: var(--q2-accent),
+ * toutes deux jamais définies (palette monochrome, accent-color vide).
+ * Spécificité plus forte que la règle générique button/[type=submit]
+ * ajoutée précédemment : cette règle l'emportait, d'où le bouton resté
+ * blanc. Ancrage direct sur la même couleur que les autres boutons.
+ */
+
+.form-wrapper .buttons button,
+.form-wrapper .buttons input[type="submit"],
+.form-wrapper .buttons input[type="reset"],
+.form-wrapper .button-wrapper button,
+.form-wrapper .button-wrapper input[type="submit"],
+.form-wrapper .button-wrapper input[type="reset"] {
+  background: #02659a;
+  color: #ffffff;
+}
+
+.form-wrapper .buttons button:hover,
+.form-wrapper .buttons input[type="submit"]:hover,
+.form-wrapper .button-wrapper button:hover,
+.form-wrapper .button-wrapper input[type="submit"]:hover {
+  color: #ffffff;
+}
+
+/*
+ * Navigation du calendrier de disponibilités — liens stylés en boutons
+ * (même fond que le bouton "Envoyer" pour cohérence visuelle). Partagé
+ * par /gerer et les fiches gîtes via partials/calendrier.html.twig.
+ */
+
+.calendrier-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.625rem;
+  margin-bottom: 1rem;
+}
+
+.calendrier-nav a {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.625rem 1.125rem;
+  font-weight: 600;
+  border-radius: var(--q2-radius);
+  background: #02659a;
+  color: #ffffff;
+  text-decoration: none;
+}
+
+.calendrier-nav a:hover {
+  color: #ffffff;
+  opacity: 0.9;
+}

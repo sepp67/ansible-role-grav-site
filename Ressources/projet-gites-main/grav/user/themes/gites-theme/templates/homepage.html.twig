@@ -1,0 +1,28 @@
+{% extends 'partials/base.html.twig' %}
+
+{% block content %}
+    <article class="content-item homepage">
+        {{ page.content|raw }}
+
+        {% set gites = page.find('/gites').children() %}
+        {% if gites is not empty %}
+            <section class="gite-list">
+                <h2>Nos gîtes</h2>
+                <div class="gite-list-grid">
+                    {% for gite in gites %}
+                        <article class="gite-list-item">
+                            <a href="{{ gite.url }}">
+                                {% set cover = gite.media().images()['photo-1.jpg'] %}
+                                {% if cover %}
+                                    {% set optimized = cover.resize(400).quality(80).enableProgressive() %}
+                                    <img src="{{ optimized.url }}" alt="{{ gite.title }}" loading="lazy">
+                                {% endif %}
+                                <h3>{{ gite.title }}</h3>
+                            </a>
+                        </article>
+                    {% endfor %}
+                </div>
+            </section>
+        {% endif %}
+    </article>
+{% endblock %}

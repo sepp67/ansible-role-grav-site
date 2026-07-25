@@ -1,0 +1,49 @@
+extends@: default
+
+form:
+  fields:
+    tabs:
+      fields:
+        galerie:
+          type: tab
+          title: Galerie photographique
+          fields:
+            header.galerie.photos:
+              type: list
+              label: Photos
+              style: vertical
+              collapsed: true
+              fields:
+                .fichier:
+                  type: filepicker
+                  label: Fichier
+                  preview_images: true
+                .alt:
+                  type: text
+                  label: Texte alternatif
+                .espace:
+                  type: select
+                  label: Espace
+                  options:
+                    salon: Salon
+                    cuisine: Cuisine
+                    chambres: Chambres
+                    salle_de_bain: Salle de bain
+                    exterieurs: Extérieurs
+                    autres: Photos supplémentaires
+                .ordre:
+                  type: text
+                  label: Ordre dans l'espace
+                  size: x-small
+                  validate:
+                    type: int
+                    min: 1
+                .vitrine:
+                  type: text
+                  label: Position vitrine (1 à 5, facultatif)
+                  size: x-small
+                  validate:
+                    type: int
+                    min: 1
+                    max: 5
+                    required: false

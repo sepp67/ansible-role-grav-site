@@ -1,0 +1,105 @@
+---
+# Identité de l'application déployée — les deux seules variables qui doivent
+# changer pour déployer une application différente basée sur grav-runtime.
+grav_image: ""
+grav_version: ""
+
+# Nom du conteneur / service docker compose, et racine de l'instance sur
+# l'hôte. Une instance = un répertoire.
+grav_container_name: "grav-site"
+grav_base_directory: "/opt/grav-site/{{ grav_container_name }}"
+
+# Réseau. Le rôle ne gère jamais de reverse proxy ni de TLS : par défaut le
+# port n'est publié que sur loopback, à surcharger explicitement
+# (ex. "0.0.0.0") si le conteneur doit être exposé directement.
+grav_bind_address: "127.0.0.1"
+grav_http_port: 8080
+
+grav_restart_policy: "unless-stopped"
+
+# Répertoires persistants — voir README.md "grav-runtime" pour le contrat :
+# ce sont les 4 seuls sous-répertoires de user/ que le runtime traite comme
+# persistants et montables séparément.
+grav_pages_directory: "{{ grav_base_directory }}/data/pages"
+grav_accounts_directory: "{{ grav_base_directory }}/data/accounts"
+grav_data_directory: "{{ grav_base_directory }}/data/data"
+grav_images_directory: "{{ grav_base_directory }}/data/images"
+
+# Fichiers secrets (ex. security-private.php, email-private.php), montés
+# individuellement en lecture seule sous user/config/. Jamais générés par le
+# rôle : chaque entrée fournit soit un fichier source (`src`, sur le
+# contrôleur, typiquement chiffré avec ansible-vault), soit un contenu
+# inline (`content`, à vaultiser dans les variables du rôle).
+#
+# grav_secrets:
+#   - name: security-private.php
+#     src: "{{ inventory_dir }}/files/security-private.php"
+#   - name: email-private.php
+#     content: "{{ vaulted_email_private_php }}"
+grav_secret_directory: "{{ grav_base_directory }}/secrets"
+grav_secrets: []
+
+# GID interne de www-data dans grav-runtime (image basée sur php:*-fpm-alpine,
+# voir Dockerfile/entrypoint.sh du runtime : uid/gid 82). Les fichiers
+# secrets sont la seule donnée que le rôle dépose sur l'hôte sans jamais
+# passer par le mécanisme de permissions du runtime (montage RO, jamais
+# chowné par le conteneur) : le rôle doit donc leur donner directement le
+# bon gid numérique pour que PHP-FPM (www-data, gid 82 dans le conteneur)
+# puisse les lire, sans recourir à un bit "other".
+grav_container_gid: 82
+
+# Bootstrap administrateur — transmis tel quel au runtime. Politique du
+# runtime : les 3 premières variables doivent être toutes définies ou
+# toutes absentes (voir tasks/assert.yml).
+grav_admin_user: ""
+grav_admin_password: ""
+grav_admin_email: ""
+grav_admin_fullname: ""
+grav_admin_title: ""
+grav_admin_language: ""
+
+grav_timezone: ""
+
+# Échappatoire générique : variables d'environnement additionnelles
+# acceptées par une future version de grav-runtime, sans avoir à modifier ce
+# rôle pour chaque nouvelle variable.
+grav_extra_environment: {}
+
+# Healthcheck Docker déclaré dans docker-compose.yml — mêmes valeurs que le
+# HEALTHCHECK déjà défini dans l'image (Dockerfile de grav-runtime), reprises
+# ici pour rester explicites dans le compose généré et ajustables sans
+# reconstruire l'image.
+grav_healthcheck_interval: "30s"
+grav_healthcheck_timeout: "3s"
+grav_healthcheck_start_period: "10s"
+grav_healthcheck_retries: 3
+
+# Attente côté Ansible du statut Docker "healthy" avant de considérer le
+# déploiement comme terminé (voir tasks/healthcheck.yml).
+grav_deploy_wait_retries: 30
+grav_deploy_wait_delay: 2
+
+# /healthz (ci-dessus) est un endpoint technique qui ne passe jamais par
+# Grav lui-même. Le rôle vérifie donc, en plus, qu'une page réelle du site
+# répond correctement.
+#
+# grav_site_check_host est volontairement distinct de grav_bind_address :
+# ce dernier peut légitimement valoir "0.0.0.0" (écoute sur toutes les
+# interfaces), une adresse non joignable en tant que destination — la
+# vérification HTTP doit toujours cibler une adresse réellement connectable
+# (le check s'exécute sur l'hôte cible lui-même, d'où 127.0.0.1 par défaut).
+grav_site_check_host: "127.0.0.1"
+grav_site_check_path: "/"
+grav_site_check_status: 200
+grav_site_check_retries: 10
+grav_site_check_delay: 5
+grav_site_check_timeout: 5
+
+# Installation de Docker / Docker Compose. À désactiver si l'hôte est déjà
+# préparé par ailleurs.
+grav_manage_docker: true
+
+# started: (re)crée/démarre le service avec l'image et la config courantes.
+# stopped: arrête le service sans supprimer les volumes persistants.
+# restarted: force un redémarrage du conteneur.
+grav_state: "started"

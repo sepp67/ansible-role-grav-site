@@ -1,0 +1,46 @@
+---
+# Le HEALTHCHECK Docker natif de l'image (GET /healthz, technique, ne passe
+# jamais par Grav) prouve que Nginx et PHP-FPM sont vivants et reliés. Ce
+# rôle attend ce statut "healthy", puis vérifie en plus qu'une page réelle
+# du site répond — voir grav-runtime README.md "Healthcheck" : la limite
+# assumée du HEALTHCHECK natif est explicitement documentée là, ce second
+# contrôle est ce que le runtime attend du rôle de déploiement.
+
+- name: "Attendre le healthcheck puis vérifier que le site répond"
+  block:
+    - name: "Attendre que le conteneur soit 'healthy'"
+      ansible.builtin.command:
+        cmd: "docker inspect --format='{{ '{{' }}.State.Health.Status{{ '}}' }}' {{ grav_container_name }}"
+      register: grav_health_status
+      changed_when: false
+      until: grav_health_status.stdout | trim == 'healthy'
+      retries: "{{ grav_deploy_wait_retries }}"
+      delay: "{{ grav_deploy_wait_delay }}"
+
+    - name: "Vérifier qu'une page réelle du site répond"
+      ansible.builtin.uri:
+        url: "http://{{ grav_site_check_host }}:{{ grav_http_port }}{{ grav_site_check_path }}"
+        status_code: "{{ grav_site_check_status }}"
+        timeout: "{{ grav_site_check_timeout }}"
+      register: grav_site_check
+      until: grav_site_check.status | default(0) == grav_site_check_status
+      retries: "{{ grav_site_check_retries }}"
+      delay: "{{ grav_site_check_delay }}"
+
+  rescue:
+    - name: "Récupérer les derniers logs du conteneur pour diagnostic"
+      ansible.builtin.command:
+        cmd: "docker logs --tail 100 {{ grav_container_name }}"
+      register: grav_failure_logs
+      changed_when: false
+      failed_when: false
+
+    - name: "Échouer proprement avec le contexte du problème"
+      ansible.builtin.fail:
+        msg: >-
+          Le déploiement de {{ grav_image }}:{{ grav_version }} a échoué : le
+          conteneur {{ grav_container_name }} n'est pas devenu "healthy" ou
+          ne répond pas correctement sur {{ grav_site_check_path }}.
+          Derniers logs du conteneur :
+          {{ grav_failure_logs.stdout | default('(indisponibles)') }}
+          {{ grav_failure_logs.stderr | default('') }}

@@ -1,0 +1,155 @@
+---
+# Test fonctionnel du rôle : distingue explicitement 4 cas avec deux
+# versions publiques réelles et distinctes de grav-runtime (aucun contenu
+# métier), en vérifiant à chaque étape l'image RÉELLEMENT en exécution
+# (docker inspect), la persistance des données et l'idempotence de
+# deployed_versions.log :
+#
+#   1. Déploiement initial de la version A.
+#   2. Redéploiement de la MÊME version A (idempotence attendue : le journal
+#      des versions ne doit PAS grandir).
+#   3. Mise à jour réelle A -> B (le journal DOIT grandir de 1 ligne).
+#   4. Rollback réel B -> A (le journal DOIT grandir de 1 ligne).
+#
+# Dans les 4 cas : le marqueur déposé dans user/pages doit survivre.
+#
+# Prérequis : Docker et le plugin Docker Compose déjà installés sur l'hôte
+# de test (grav_manage_docker: false ici, pour ne pas modifier la machine
+# qui exécute les tests — l'installation de Docker est testée séparément,
+# voir README.md "Tests").
+#
+# Usage (depuis la racine du dépôt) :
+#   cd tests && ansible-playbook -i inventory test.yml
+#
+# tests/ansible.cfg pointe roles_path vers le parent du dépôt, ce qui permet
+# à Ansible de résoudre le rôle par le nom de son propre répertoire
+# (ansible-role-grav-site), sans copie ni symlink.
+
+- name: "Test fonctionnel du rôle grav-site : redéploiement / mise à jour / rollback"
+  hosts: localhost
+  connection: local
+
+  vars:
+    grav_manage_docker: false
+    grav_image: "ghcr.io/sepp67/grav-runtime"
+    grav_version_a: "1.0.1"
+    grav_version_b: "1.0.2"
+    grav_container_name: "grav-site-test"
+    grav_base_directory: "/tmp/grav-site-test"
+    grav_bind_address: "127.0.0.1"
+    grav_http_port: 18080
+
+  tasks:
+    - name: "Nettoyer un éventuel reliquat d'une exécution précédente"
+      block:
+        - name: "Supprimer un éventuel conteneur/volumes précédents"
+          community.docker.docker_compose_v2:
+            project_src: "{{ grav_base_directory }}"
+            state: absent
+          when: (grav_base_directory ~ '/docker-compose.yml') is file
+
+        # Une fois initialisés par grav-runtime, certains sous-répertoires
+        # appartiennent à www-data (uid/gid 82) à l'intérieur du conteneur :
+        # l'utilisateur Ansible ne peut plus y accéder pour les supprimer
+        # lui-même. Un conteneur jetable exécuté en root le peut (root
+        # ignore les vérifications de permissions Unix classiques).
+        - name: "Supprimer un éventuel répertoire précédent (via un conteneur root)"
+          ansible.builtin.command:
+            cmd: >-
+              docker run --rm -v {{ grav_base_directory | dirname }}:/cleanup
+              alpine rm -rf /cleanup/{{ grav_base_directory | basename }}
+          when: (grav_base_directory) is directory
+          changed_when: true
+      rescue:
+        - name: "Ignorer les erreurs de nettoyage (rien à nettoyer)"
+          ansible.builtin.debug:
+            msg: "Rien à nettoyer."
+
+    # ------------------------------------------------------------------
+    # Phase 1 : déploiement initial de la version A
+    # ------------------------------------------------------------------
+    - name: "Phase 1 : déployer la version A"
+      ansible.builtin.include_role:
+        name: ansible-role-grav-site
+        public: true
+      vars:
+        grav_version: "{{ grav_version_a }}"
+
+    - name: "Phase 1 : déposer un marqueur dans les pages persistantes (via le conteneur)"
+      ansible.builtin.command:
+        cmd: >-
+          docker exec {{ grav_container_name }}
+          sh -c "echo marker > /var/www/html/user/pages/marker.txt"
+      changed_when: true
+
+    - name: "Phase 1 : vérifications"
+      ansible.builtin.include_tasks: _verify_phase.yml
+      vars:
+        grav_phase_label: "Phase 1 — déploiement initial A"
+        grav_expected_version: "{{ grav_version_a }}"
+        grav_expected_log_count: 1
+
+    # ------------------------------------------------------------------
+    # Phase 2 : redéploiement de la MÊME version A (idempotence)
+    # ------------------------------------------------------------------
+    - name: "Phase 2 : redéployer la même version A"
+      ansible.builtin.include_role:
+        name: ansible-role-grav-site
+        public: true
+      vars:
+        grav_version: "{{ grav_version_a }}"
+
+    - name: "Phase 2 : vérifications"
+      ansible.builtin.include_tasks: _verify_phase.yml
+      vars:
+        grav_phase_label: "Phase 2 — redéploiement identique A (idempotence)"
+        grav_expected_version: "{{ grav_version_a }}"
+        grav_expected_log_count: 1
+
+    # ------------------------------------------------------------------
+    # Phase 3 : mise à jour réelle A -> B
+    # ------------------------------------------------------------------
+    - name: "Phase 3 : mettre à jour vers la version B"
+      ansible.builtin.include_role:
+        name: ansible-role-grav-site
+        public: true
+      vars:
+        grav_version: "{{ grav_version_b }}"
+
+    - name: "Phase 3 : vérifications"
+      ansible.builtin.include_tasks: _verify_phase.yml
+      vars:
+        grav_phase_label: "Phase 3 — mise à jour réelle A -> B"
+        grav_expected_version: "{{ grav_version_b }}"
+        grav_expected_log_count: 2
+
+    # ------------------------------------------------------------------
+    # Phase 4 : rollback réel B -> A
+    # ------------------------------------------------------------------
+    - name: "Phase 4 : revenir (rollback) à la version A"
+      ansible.builtin.include_role:
+        name: ansible-role-grav-site
+        public: true
+      vars:
+        grav_version: "{{ grav_version_a }}"
+
+    - name: "Phase 4 : vérifications"
+      ansible.builtin.include_tasks: _verify_phase.yml
+      vars:
+        grav_phase_label: "Phase 4 — rollback réel B -> A"
+        grav_expected_version: "{{ grav_version_a }}"
+        grav_expected_log_count: 3
+
+    - name: "Nettoyer l'environnement de test"
+      block:
+        - name: "Arrêter et supprimer le conteneur de test"
+          community.docker.docker_compose_v2:
+            project_src: "{{ grav_base_directory }}"
+            state: absent
+
+        - name: "Supprimer le répertoire de test (via un conteneur root)"
+          ansible.builtin.command:
+            cmd: >-
+              docker run --rm -v {{ grav_base_directory | dirname }}:/cleanup
+              alpine rm -rf /cleanup/{{ grav_base_directory | basename }}
+          changed_when: true

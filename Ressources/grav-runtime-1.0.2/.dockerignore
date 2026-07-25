@@ -1,0 +1,13 @@
+.git/
+.gitignore
+.dockerignore
+README.md
+
+# Reference material used only to design this runtime — never part of
+# the image.
+Ressources/
+
+# Local test harness — mounted at runtime, never baked into the image.
+test/
+
+*.log

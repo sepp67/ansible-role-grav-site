@@ -1,0 +1,29 @@
+---
+- name: "Valider les variables du rôle"
+  ansible.builtin.import_tasks: assert.yml
+
+- name: "Installer Docker et le plugin Docker Compose"
+  ansible.builtin.import_tasks: docker.yml
+  when: grav_manage_docker | bool
+
+- name: "Vérifier que Docker est déjà installé et opérationnel"
+  ansible.builtin.import_tasks: verify_docker.yml
+  when: not (grav_manage_docker | bool)
+
+- name: "Créer les répertoires persistants"
+  ansible.builtin.import_tasks: directories.yml
+
+- name: "Déployer les fichiers secrets"
+  ansible.builtin.import_tasks: secrets.yml
+
+- name: "Déployer le compose et démarrer/arrêter le conteneur"
+  ansible.builtin.import_tasks: deploy.yml
+
+- name: "Attendre le healthcheck et enregistrer la version déployée"
+  when: grav_state != 'stopped'
+  block:
+    - name: "Attendre le healthcheck et vérifier que le site répond"
+      ansible.builtin.import_tasks: healthcheck.yml
+
+    - name: "Enregistrer la version déployée"
+      ansible.builtin.import_tasks: version.yml

@@ -1,0 +1,28 @@
+---
+galaxy_info:
+  role_name: grav_site
+  namespace: sepp67
+  author: sepp67
+  description: >-
+    Déploie un site basé sur une image applicative dérivée de grav-runtime
+    (Grav CMS générique dans Nginx + PHP-FPM), publiée sur un registre
+    d'images Docker. Ne construit ni ne modifie jamais d'image.
+  license: MIT
+  min_ansible_version: "2.17"
+  platforms:
+    - name: Ubuntu
+      versions:
+        - jammy
+        - noble
+    - name: Debian
+      versions:
+        - bullseye
+        - bookworm
+  galaxy_tags:
+    - docker
+    - grav
+    - cms
+    - deployment
+    - php
+
+dependencies: []

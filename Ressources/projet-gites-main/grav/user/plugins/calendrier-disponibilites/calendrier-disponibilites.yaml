@@ -1,0 +1,8 @@
+name: Calendrier Disponibilités
+version: 0.1.0
+description: >
+  Gestion des disponibilités des gîtes. Squelette minimal : un seul hook
+  (onPageInitialized) pour traiter le formulaire d'ajout de période
+  indisponible (TASK-003-03-02). Structuration complète du plugin
+  (blueprint détaillé, intégration admin) réservée à FEAT-003-04-01.
+enabled: true

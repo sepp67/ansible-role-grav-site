@@ -1,0 +1,6 @@
+name: Contact
+version: 0.1.0
+description: >
+  Résolution du destinataire des demandes de contact : associe la route d'un
+  gîte à l'adresse e-mail du compte de son propriétaire (TASK-004-02-03).
+enabled: true
