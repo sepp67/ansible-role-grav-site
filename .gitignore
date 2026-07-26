@@ -27,3 +27,5 @@ README.md
 **/.gitignore
 **/docker-compose.yml
 **/compose.yml
+
+CLAUDE.md
