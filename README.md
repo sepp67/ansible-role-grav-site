@@ -14,6 +14,13 @@ grav-runtime (socle générique)
             └── ansible-role-grav-site (ce rôle : déploie n'importe laquelle de ces images)
 ```
 
+Le **rôle** (`defaults/`, `tasks/`, `templates/`, `meta/`) reste consommable depuis n'importe quel
+autre dépôt Ansible. Ce dépôt fournit en plus, depuis sa racine, une **couche d'exploitation
+autonome** (`ansible.cfg`, `playbooks/`, `inventories/production/`, `Makefile`) : après clonage et
+configuration, un opérateur peut déployer une application dérivée de `grav-runtime` (ex.
+`projet-gites`) directement depuis ce dépôt, sans passer par un autre dépôt Ansible — voir "Deux
+façons d'utiliser ce dépôt".
+
 ## Ce que fait le rôle
 
 - Installe Docker Engine et le plugin Docker Compose si nécessaire (Debian/Ubuntu).
@@ -55,53 +62,184 @@ autre OS, mettez `grav_manage_docker: false` et installez Docker Engine + le plu
 vous-même avant d'appliquer ce rôle — le reste du rôle (répertoires, compose, secrets,
 healthcheck, version) reste indépendant de l'OS.
 
-## Playbook minimal
+## Deux façons d'utiliser ce dépôt
+
+Le **rôle** (`defaults/`, `tasks/`, `templates/`, `meta/`) est et reste consommable depuis
+n'importe quel autre dépôt Ansible (« Control Repository » ou autre), exactement comme avant.
+
+Ce dépôt fournit *en plus* une **couche d'exploitation autonome** (`ansible.cfg`, `playbooks/`,
+`inventories/production/`, `Makefile`) qui ne fait qu'appeler ce même rôle, sans en dupliquer la
+logique : après clonage, configuration de l'inventaire et création du Vault, un opérateur peut
+déployer `ghcr.io/sepp67/projet-gites` directement depuis ce dépôt, **sans dépendre de Control
+Repository ni d'aucun autre dépôt Ansible**. Control Repository reste responsable de
+l'infrastructure partagée (reverse proxy notamment) mais plus du site Grav lui-même — voir
+"Utilisation autonome du dépôt" ci-dessous pour ce qui reste explicitement hors périmètre.
+
+### Utilisation comme rôle réutilisable
+
+Consommation depuis un autre dépôt Ansible (ex. Control Repository), le rôle étant installé ou
+référencé comme n'importe quel autre rôle :
 
 ```yaml
+# playbook du dépôt appelant
 - hosts: grav_servers
   become: true
   roles:
-    - role: ansible-role-grav-site
+    - role: ansible-role-grav-site   # installé via requirements.yml / ansible-galaxy, ou en submodule
       vars:
         grav_image: "ghcr.io/sepp67/projet-gites"
         grav_version: "1.0.0"
 ```
 
-## Inventaire minimal
-
 ```ini
+# inventaire du dépôt appelant
 [grav_servers]
 site1.example.org
 ```
 
-## Mettre à jour vers une nouvelle version
+**Mettre à jour** : changer `grav_version: "1.0.1"` (au lieu de `"1.0.0"`) et rejouer le playbook.
+Le rôle télécharge la nouvelle image, recrée le conteneur, attend le healthcheck. Les répertoires
+persistants (`pages`, `accounts`, `data`, `images`) sont des répertoires de l'hôte, montés en bind
+mount, indépendants du cycle de vie du conteneur : ils ne sont jamais recréés ni vidés par une
+mise à jour.
 
-```yaml
-        grav_version: "1.0.1"   # au lieu de "1.0.0"
+**Rollback** : remettre `grav_version` à sa valeur antérieure (ex. `"1.0.0"`) et rejouer le
+playbook. Un rollback est, du point de vue du rôle, une mise à jour comme une autre : même
+mécanisme, même garantie de non-perte des données persistantes. `{{ grav_base_directory
+}}/deployed_versions.log` conserve l'historique de toutes les versions déployées (horodaté, une
+ligne par changement réel de version) pour retrouver la version à laquelle revenir. **Ce rollback
+est entièrement manuel** : le rôle ne détecte, ne déclenche et n'automatise aucun retour en
+arrière ; un healthcheck en échec fait échouer le déploiement en cours (voir "Healthcheck") mais
+ne provoque jamais, de lui-même, un retour automatique à la version précédente.
+
+### Utilisation autonome du dépôt
+
+Procédure complète pour déployer directement depuis ce dépôt, sans Control Repository.
+
+**1. Cloner et installer les dépendances**
+
+```bash
+git clone <URL_DU_DEPOT>
+cd ansible-role-grav-site   # ou tout autre nom : voir "Résolution du rôle"
+
+ansible-galaxy collection install -r requirements.yml
 ```
 
-Rejouez le playbook. Le rôle télécharge la nouvelle image, recrée le conteneur, attend le
-healthcheck. Les répertoires persistants (`pages`, `accounts`, `data`, `images`) sont des
-répertoires de l'hôte, montés en bind mount, indépendants du cycle de vie du conteneur : ils ne
-sont jamais recréés ni vidés par une mise à jour.
+**2. Configurer l'inventaire**
 
-## Revenir à une version précédente (rollback)
+Éditer `inventories/production/hosts.yml` : remplacer `CHANGE_ME.example.org` et `ansible_host`
+par la VM cible réelle. Éditer `inventories/production/group_vars/grav_servers/main.yml` :
+remplacer `grav_version: "<VERSION_EXPLICITE>"` par un tag réellement publié sur GHCR (ex.
+`"1.0.0"`) — jamais `"latest"`. `grav_image` y est déjà fixé à `ghcr.io/sepp67/projet-gites` (ce
+profil d'inventaire est spécifique à `projet-gites` ; le rôle, lui, reste générique).
 
-```yaml
-        grav_version: "1.0.0"   # valeur antérieure
+Ces deux fichiers sont **édités sur place, pas dupliqués vers un autre nom** — voir "Modèle ou
+inventaire opérationnel ?" ci-dessous pour ce qu'il faut en faire ensuite (les commiter ou non).
+
+**3. Créer et chiffrer le Vault**
+
+```bash
+cp inventories/production/group_vars/grav_servers/vault.yml.example \
+   inventories/production/group_vars/grav_servers/vault.yml
+
+# éditer vault.yml : renseigner vault_grav_admin_user / _password / _email au minimum
+# (voir "Stratégie des secrets" ci-dessous)
+
+ansible-vault encrypt \
+   inventories/production/group_vars/grav_servers/vault.yml
 ```
 
-Rejouez le playbook. Un rollback est, du point de vue du rôle, une mise à jour comme une autre :
-même mécanisme, même garantie de non-perte des données persistantes. `{{ grav_base_directory
-}}/deployed_versions.log` conserve l'historique de toutes les versions déployées (avec horodatage,
-une ligne par changement réel de version — jamais dupliqué par un simple redéploiement identique)
-pour retrouver la version à laquelle revenir.
+**4. Vérifications préalables (préflight)**
 
-**Ce rollback est entièrement manuel.** Le rôle ne détecte, ne déclenche et n'automatise aucun
-retour en arrière : c'est à l'opérateur de choisir la version cible (dans
-`deployed_versions.log`) et de rejouer explicitement le playbook avec ce `grav_version`. Un
-healthcheck en échec fait échouer le déploiement en cours (voir "Healthcheck") mais ne provoque
-jamais, de lui-même, un retour automatique à la version précédente.
+Voir "Préflight" ci-dessous — au minimum, tester la connectivité :
+
+```bash
+ansible grav_servers -m ping --ask-vault-pass
+```
+
+**5. Déployer**
+
+```bash
+ansible-playbook playbooks/deploy.yml --ask-vault-pass
+# ou : make deploy ARGS=--ask-vault-pass
+```
+
+`--ask-vault-pass` (ou `--vault-password-file`) n'est nécessaire que parce que `vault.yml` est
+chiffré ; omettez-le uniquement si vous utilisez un autre mécanisme de décryptage Vault (agent,
+fichier de mot de passe configuré dans `ansible.cfg`, etc.).
+
+**6. Vérifier**
+
+```bash
+ansible-playbook playbooks/check.yml --ask-vault-pass
+```
+
+N'installe rien, ne modifie rien : relit le healthcheck Docker et vérifie qu'une page réelle du
+site répond (mêmes tâches que celles exécutées automatiquement à la fin d'un déploiement).
+
+**7. Mettre à jour**
+
+Modifier `grav_version` dans `inventories/production/group_vars/grav_servers/main.yml`, puis :
+
+```bash
+ansible-playbook playbooks/deploy.yml --ask-vault-pass
+```
+
+**8. Rollback**
+
+Remettre `grav_version` à sa valeur antérieure dans le même fichier, puis rejouer
+`playbooks/deploy.yml` — voir "Rollback" ci-dessus (entièrement manuel, mêmes garanties).
+
+**9. Arrêter / redémarrer**
+
+```bash
+ansible-playbook playbooks/stop.yml --ask-vault-pass       # ou : make stop
+ansible-playbook playbooks/restart.yml --ask-vault-pass    # ou : make restart
+```
+
+### `inventories/production/` : modèle ou inventaire opérationnel ?
+
+Les deux, selon le dépôt où on se trouve — pas d'ambiguïté une fois cette distinction posée :
+
+- **Dans le dépôt canonique publié** (celui que d'autres opérateurs clonent), `inventories/
+  production/` est un **modèle** : `hosts.yml` et `main.yml` contiennent des valeurs
+  volontairement invalides (`CHANGE_ME.example.org`, `<VERSION_EXPLICITE>`). Ce dépôt canonique
+  n'est **jamais lui-même pointé vers une VM réelle** et n'est **jamais déployé tel quel**.
+- **Une fois cloné pour un déploiement réel** (étape 1 ci-dessus), `hosts.yml` et `main.yml` sont
+  **édités sur place** (jamais copiés vers un autre nom — contrairement à `vault.yml.example`,
+  ils ne contiennent aucun secret, rien n'impose une distinction fichier-modèle / fichier-réel).
+  Une fois édités, ils **deviennent l'inventaire opérationnel de ce déploiement précis** : hostname
+  réel, `grav_version` réellement déployée.
+- Ces fichiers édités sont faits pour être **commités dans le clone de l'opérateur** (son propre
+  fork ou dépôt d'exploitation dédié à ce site) — **jamais repoussés vers le dépôt canonique en
+  amont**, qui doit rester un modèle générique pour d'autres opérateurs. Commiter
+  `inventories/production/` une fois configuré est un choix délibéré, pas un oubli : `git log` /
+  `git diff` sur `group_vars/grav_servers/main.yml` devient la trace auditable de "quelle version
+  est déployée depuis quand" (cohérent avec `deployed_versions.log`, tenu côté hôte cible). Aucun
+  secret n'y transite jamais, dans aucun des deux dépôts : `vault.yml` reste exclu par
+  `.gitignore` quel que soit le clone (voir "Stratégie des secrets").
+- **Pour déployer un second site** depuis le même clone (autre application dérivée de
+  `grav-runtime`, ou même application sur une autre VM), dupliquer le dossier
+  (`inventories/<autre-nom>/`) plutôt que ré-éditer `inventories/production/` par-dessus — chaque
+  site garde ainsi son propre profil versionné indépendamment (voir le commentaire dans
+  `hosts.yml`).
+
+### Hors périmètre (usage autonome comme usage en rôle réutilisable)
+
+- **Control Repository n'est plus requis pour déployer le site** : ce dépôt, une fois cloné et
+  configuré, suffit intégralement à créer, mettre à jour, arrêter, redémarrer et diagnostiquer
+  l'instance. Control Repository peut continuer à exister pour l'infrastructure partagée, mais
+  n'a plus aucune responsabilité sur le site Grav lui-même.
+- **Le reverse proxy reste hors périmètre.** Ce rôle publie le service en HTTP sur
+  `{{ grav_bind_address }}:{{ grav_http_port }}` — `127.0.0.1:8080` par défaut. Un reverse proxy
+  installé séparément (par Control Repository ou autrement) peut cibler ce port ; TLS et le nom de
+  domaine public sont sa responsabilité, jamais celle de ce dépôt.
+- **Le DNS reste hors périmètre.**
+- **Le pare-feu reste hors périmètre.**
+- **L'image doit déjà être publiée sur un registre (GHCR)** : ce dépôt ne construit ni ne publie
+  jamais d'image (voir "Ce que le rôle ne fait jamais").
+- **Un changement de version se fait uniquement par modification explicite de `grav_version`**
+  (jamais automatique, jamais implicite via `latest`).
 
 ## Variables
 
@@ -173,6 +311,26 @@ grav_secrets:
 
 `grav_admin_password` doit provenir d'`ansible-vault`, jamais être commité en clair.
 
+### Stratégie des secrets (usage autonome)
+
+L'inventaire `inventories/production/` (voir "Utilisation autonome du dépôt") applique une
+convention explicite pour ne jamais exposer de valeur sensible dans un fichier non chiffré :
+
+1. `group_vars/grav_servers/vault.yml` (chiffré, jamais commité en clair — voir `.gitignore`)
+   définit chaque secret sous un nom **préfixé `vault_`** : `vault_grav_admin_password`,
+   `vault_grav_admin_user`, etc. — voir `vault.yml.example` pour la liste complète.
+2. `group_vars/grav_servers/main.yml` (non chiffré, versionné) affecte explicitement chaque
+   variable attendue par le rôle à la variable Vault correspondante :
+
+   ```yaml
+   grav_admin_password: "{{ vault_grav_admin_password }}"
+   ```
+
+Cette indirection à sens unique (jamais l'inverse) évite trois problèmes classiques : aucune
+collision de nom entre les deux jeux de variables, aucune récursion Jinja (`grav_admin_password`
+ne référence jamais `grav_admin_password`), et aucune valeur sensible ne peut se retrouver dans un
+fichier non chiffré par erreur — `main.yml` ne contient que des références, jamais une valeur.
+
 ### Échappatoire générique
 
 | Variable | Défaut | Description |
@@ -199,6 +357,61 @@ grav_secrets:
 Quand `grav_manage_docker: false`, le rôle ne suppose pas silencieusement que Docker est prêt : il
 vérifie explicitement (`docker version`, `docker compose version`) et échoue clairement si l'un
 des deux manque (`tasks/verify_docker.yml`).
+
+## Résolution du rôle
+
+`playbooks/deploy.yml`, `stop.yml`, `restart.yml` et `check.yml` référencent le rôle par
+**chemin relatif au fichier playbook lui-même** (`{{ playbook_dir }}/..`), jamais par son nom.
+Ce dépôt EST le rôle (`tasks/`, `defaults/`, `templates/`, `meta/` à sa racine) : `playbooks/`
+n'est qu'un niveau en dessous, donc `{{ playbook_dir }}/..` désigne toujours la racine du dépôt,
+**quel que soit le nom du dossier sous lequel ce dépôt a été cloné**. Vérifié empiriquement
+(bac à sable avec un dossier de clone nommé arbitrairement) : la résolution fonctionne à
+l'identique avec `roles:` et avec `include_role`.
+
+`ansible.cfg` définit bien `roles_path`, mais celui-ci n'intervient à aucun moment dans la
+résolution de CE rôle par les playbooks de ce dépôt — il n'est là que pour un éventuel rôle tiers
+ajouté un jour via `requirements.yml`. `tests/test.yml` et `tests/test_env_encoding.yml` utilisent
+la même résolution par chemin relatif, pour la même raison.
+
+## Préflight
+
+Avant un premier déploiement, vérifier :
+
+| Point | Commande |
+|---|---|
+| Version d'Ansible supportée | `ansible --version` (voir "Prérequis" : ansible-core ≥ 2.17, < 2.18) |
+| Collection `community.docker` installée | `ansible-galaxy collection install -r requirements.yml` puis `ansible-galaxy collection list community.docker` |
+| Connectivité SSH vers la cible | `ansible grav_servers -m ping` |
+| `become` fonctionnel sur la cible | `ansible grav_servers -b -m command -a "whoami"` (doit répondre `root`) |
+| Architecture de la cible supportée | `ansible grav_servers -m setup -a "filter=ansible_architecture"` (x86_64 ou aarch64 si `grav_manage_docker: true`) |
+| Registre GHCR joignable depuis la cible | `ansible grav_servers -m uri -a "url=https://ghcr.io/v2/ status_code=200,401"` |
+| Fichier Vault présent | `test -f inventories/production/group_vars/grav_servers/vault.yml` |
+
+`make preflight` exécute ces sept vérifications d'un coup (voir "Makefile"). Aucune de ces
+vérifications ne duplique ce que le rôle valide déjà lui-même à l'exécution (Docker/Compose : voir
+`tasks/verify_docker.yml` ; variables obligatoires : voir `tasks/assert.yml`) — elles couvrent
+uniquement ce qui précède l'exécution du rôle (accès à la machine, au registre).
+
+## Makefile
+
+Point d'entrée ergonomique optionnel, qui se contente d'appeler Ansible et les outils standards
+(aucune logique propre, aucun paramètre masqué) :
+
+| Cible | Équivalent |
+|---|---|
+| `make dependencies` | `ansible-galaxy collection install -r requirements.yml` |
+| `make lint` | `ansible-lint . playbooks/ inventories/` |
+| `make preflight` | voir "Préflight" ci-dessus |
+| `make deploy` | `ansible-playbook playbooks/deploy.yml` |
+| `make check` | `ansible-playbook playbooks/check.yml` |
+| `make stop` | `ansible-playbook playbooks/stop.yml` |
+| `make restart` | `ansible-playbook playbooks/restart.yml` |
+| `make vault-edit` | `ansible-vault edit inventories/production/group_vars/grav_servers/vault.yml` |
+| `make vault-view` | `ansible-vault view inventories/production/group_vars/grav_servers/vault.yml` |
+
+Toute cible acceptant des arguments Ansible supplémentaires (`--ask-vault-pass`, `--limit`,
+`--check --diff`, `-i` un autre inventaire...) les accepte via `ARGS`, ex. :
+`make deploy ARGS=--ask-vault-pass`.
 
 ## Structure des dossiers déployés sur l'hôte
 
@@ -254,10 +467,11 @@ Si ces conditions sont respectées, déployer une application différente ne né
 
 ```bash
 ansible-galaxy collection install -r requirements.yml
-ansible-lint .
+ansible-lint . playbooks/ inventories/   # playbooks/ et inventories/ ne sont pas auto-découverts, voir Makefile
 cd tests
 ansible-playbook -i inventory test.yml
 ansible-playbook -i inventory test_env_encoding.yml
+ansible-playbook -i inventory test_standalone.yml
 ```
 
 `tests/test.yml` déploie deux versions publiques réelles et distinctes de `grav-runtime` (aucun
@@ -275,13 +489,47 @@ des guillemets doubles et simples, et un antislash, puis vérifie via `docker ex
 que la valeur ressort **strictement identique** (comparaison sous `no_log: true`, la valeur n'est
 jamais affichée).
 
-`grav_manage_docker: false` est utilisé dans les deux fichiers pour ne pas modifier la machine de
+`tests/test_standalone.yml` exécute réellement `playbooks/deploy.yml`, `check.yml`, `restart.yml`
+et `stop.yml` (les vrais fichiers, en sous-processus `ansible-playbook`, pas une copie) depuis un
+inventaire de test dédié (`tests/inventory_grav_servers`, groupe `grav_servers` → localhost) :
+déploie, vérifie l'image en exécution, vérifie sans changer d'état, redémarre, arrête, vérifie que
+les données persistantes survivent — la preuve que la couche autonome fonctionne réellement depuis
+la racine du dépôt, sans Control Repository. `-e ansible_become=false` y désactive `become` pour ce
+test précis (voir commentaire en tête du fichier) ; les playbooks livrés gardent `become: true`.
+
+`grav_manage_docker: false` est utilisé dans les trois fichiers pour ne pas modifier la machine de
 test — la partie installation de Docker (`tasks/docker.yml`) doit être validée séparément, avec
 les privilèges root, sur un hôte Debian/Ubuntu vierge.
 
-`tests/ansible.cfg` pointe `roles_path` vers le parent du dépôt, ce qui permet à Ansible de
-résoudre le rôle par le nom de son propre répertoire (`ansible-role-grav-site`), sans copie ni
-symlink.
+Aucun de ces trois tests ne lance de déploiement de production réel : hôte local uniquement,
+images publiques génériques, nettoyage complet en fin d'exécution.
+
+### Vérifications statiques de la couche autonome
+
+En complément (voir `.github/workflows/ci.yml`, job `static-checks`), sans Docker :
+
+```bash
+# Syntaxe de chaque playbook autonome
+for p in playbooks/*.yml; do
+  ansible-playbook --syntax-check -i inventories/production/hosts.yml "$p"
+done
+
+# Validité de l'inventaire de production (exemple)
+ansible-inventory -i inventories/production/hosts.yml --list >/dev/null
+
+# grav_version de l'exemple jamais "latest"
+! grep -E '^\s*grav_version:\s*"?latest"?\s*$' \
+  inventories/production/group_vars/grav_servers/main.yml
+
+# Aucun vault.yml réel commité (seul vault.yml.example doit exister)
+test ! -f inventories/production/group_vars/grav_servers/vault.yml
+test -f inventories/production/group_vars/grav_servers/vault.yml.example
+
+# Aucune référence à Control Repository ou à un chemin de développement local
+! grep -rniE 'control[_-]repo|/home/[a-z]+/' \
+  --include='*.yml' --include='*.yaml' --include='*.cfg' --include='Makefile' \
+  --exclude-dir=Ressources --exclude-dir=.git .
+```
 
 ## Limitations connues
 

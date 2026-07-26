@@ -20,7 +20,45 @@ jobs:
       - name: Installer les dépendances du rôle
         run: ansible-galaxy collection install -r requirements.yml
       - name: ansible-lint
-        run: ansible-lint .
+        # playbooks/ et inventories/ passés explicitement : non découverts
+        # automatiquement dans un dépôt qui EST un rôle (voir README.md
+        # "Tests").
+        run: ansible-lint . playbooks/ inventories/
+
+  static-checks:
+    # Vérifications statiques de la couche autonome (playbooks/,
+    # inventories/) qui n'ont pas besoin de Docker — indépendantes du job
+    # "test" ci-dessous.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - name: Installer Ansible
+        run: pip install "ansible-core>=2.17,<2.18"
+      - name: Installer les dépendances du rôle
+        run: ansible-galaxy collection install -r requirements.yml
+      - name: "Syntaxe des playbooks autonomes"
+        run: |
+          for p in playbooks/*.yml; do
+            ansible-playbook --syntax-check -i inventories/production/hosts.yml "$p"
+          done
+      - name: "Validité de l'inventaire de production (exemple)"
+        run: ansible-inventory -i inventories/production/hosts.yml --list >/dev/null
+      - name: "grav_version de l'exemple jamais 'latest'"
+        run: |
+          ! grep -E '^\s*grav_version:\s*"?latest"?\s*$' \
+            inventories/production/group_vars/grav_servers/main.yml
+      - name: "Aucun vault.yml réel commité (seul vault.yml.example doit exister)"
+        run: |
+          test ! -f inventories/production/group_vars/grav_servers/vault.yml
+          test -f inventories/production/group_vars/grav_servers/vault.yml.example
+      - name: "Aucune référence à Control Repository ou à un chemin de développement local"
+        run: |
+          ! grep -rniE 'control[_-]repo|/home/[a-z]+/' \
+            --include='*.yml' --include='*.yaml' --include='*.cfg' --include='Makefile' \
+            --exclude-dir=Ressources --exclude-dir=.git .
 
   test:
     runs-on: ubuntu-latest
@@ -42,3 +80,7 @@ jobs:
         run: |
           cd tests
           ansible-playbook -i inventory test_env_encoding.yml
+      - name: "Test fonctionnel de la couche autonome (playbooks/deploy.yml, check.yml, restart.yml, stop.yml)"
+        run: |
+          cd tests
+          ansible-playbook -i inventory test_standalone.yml

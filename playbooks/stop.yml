@@ -1,0 +1,20 @@
+---
+# Arrête le conteneur d'un site déjà déployé, SANS supprimer les données
+# persistantes (pages/accounts/data/images restent sur l'hôte) — ce
+# playbook ne fait que transmettre grav_state: stopped au rôle, qui sait
+# déjà gérer cet état (tasks/deploy.yml, tasks/main.yml) ; rien n'est
+# réimplémenté ici.
+#
+# Le rôle est référencé par chemin relatif (voir README.md "Résolution du
+# rôle") ; `# noqa: role-name[path]` : choix délibéré, pas un oubli.
+#
+# Usage (depuis la racine du dépôt) :
+#   ansible-playbook playbooks/stop.yml
+
+- name: "Arrêter un site Grav déployé (données persistantes conservées)"
+  hosts: grav_servers
+  become: true
+  roles:
+    - role: "{{ playbook_dir }}/.."  # noqa: role-name[path]
+      vars:
+        grav_state: stopped

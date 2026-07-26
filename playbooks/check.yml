@@ -1,0 +1,27 @@
+---
+# Vérifie un déploiement déjà en place SANS le modifier : ne réinstalle
+# rien, ne redéploie rien, ne touche à aucune donnée persistante. Réutilise
+# directement les deux fichiers de tâches du rôle qui font déjà ce travail
+# (tasks/assert.yml, tasks/healthcheck.yml) via tasks_from — rien n'est
+# réimplémenté ni dupliqué ici.
+#
+# `# noqa: role-name[path]` : la référence par chemin relatif est un choix
+# délibéré (résolution indépendante du nom du dossier de clonage, vérifiée
+# empiriquement — voir README.md "Résolution du rôle"), pas un oubli.
+#
+# Usage (depuis la racine du dépôt) :
+#   ansible-playbook playbooks/check.yml
+
+- name: "Vérifier l'état d'un site Grav déjà déployé (aucun changement d'état)"
+  hosts: grav_servers
+  become: true
+  tasks:
+    - name: "Valider les variables du rôle"  # noqa: role-name[path]
+      ansible.builtin.include_role:
+        name: "{{ playbook_dir }}/.."
+        tasks_from: assert
+
+    - name: "Vérifier le healthcheck Docker et qu'une page réelle du site répond"  # noqa: role-name[path]
+      ansible.builtin.include_role:
+        name: "{{ playbook_dir }}/.."
+        tasks_from: healthcheck

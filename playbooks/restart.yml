@@ -1,0 +1,19 @@
+---
+# Redémarre le conteneur d'un site déjà déployé (même image/version) — ce
+# playbook ne fait que transmettre grav_state: restarted au rôle ; le
+# healthcheck et la vérification HTTP réelle s'exécutent ensuite comme pour
+# tout déploiement (tasks/main.yml : when: grav_state != 'stopped').
+#
+# Le rôle est référencé par chemin relatif (voir README.md "Résolution du
+# rôle") ; `# noqa: role-name[path]` : choix délibéré, pas un oubli.
+#
+# Usage (depuis la racine du dépôt) :
+#   ansible-playbook playbooks/restart.yml
+
+- name: "Redémarrer un site Grav déployé"
+  hosts: grav_servers
+  become: true
+  roles:
+    - role: "{{ playbook_dir }}/.."  # noqa: role-name[path]
+      vars:
+        grav_state: restarted

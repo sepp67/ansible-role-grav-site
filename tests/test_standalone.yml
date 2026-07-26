@@ -1,0 +1,169 @@
+---
+# Test fonctionnel de la couche d'exploitation autonome (playbooks/,
+# ansible.cfg) : prouve que playbooks/deploy.yml, check.yml, restart.yml et
+# stop.yml fonctionnent réellement depuis la racine de CE dépôt, sans
+# Control Repository ni aucun autre dépôt Ansible — et que la résolution du
+# rôle par chemin relatif fonctionne en pratique, pas seulement en théorie
+# (voir README.md "Résolution du rôle").
+#
+# Exécute les vrais fichiers playbooks/*.yml en sous-processus (pas une
+# copie, pas un include) : un `ansible-playbook playbooks/deploy.yml`
+# lancé par un opérateur depuis la racine du dépôt est exactement ce qui
+# est exercé ici.
+#
+# N'utilise que des images publiques réelles de grav-runtime (aucun contenu
+# métier), sur localhost, avec nettoyage complet en fin d'exécution —
+# CE N'EST PAS un déploiement de production (grav_manage_docker=false,
+# aucun hôte distant, aucune donnée réelle).
+#
+# `-e ansible_become=false` désactive le become des playbooks pour ce seul
+# test (l'utilisateur exécutant les tests n'a pas nécessairement de sudo
+# sans mot de passe) : grav_manage_docker=false évite toute tâche
+# nécessitant réellement root (apt, systemd) et /tmp est inscriptible par
+# l'utilisateur courant, donc rien ne dépend réellement de become ici.
+# Un déploiement réel sur un hôte distant garde become: true — ceci ne
+# modifie que l'exécution de CE test, pas les playbooks eux-mêmes.
+#
+# Usage (depuis la racine du dépôt) :
+#   cd tests && ansible-playbook -i inventory test_standalone.yml
+
+- name: "Test fonctionnel de la couche autonome (playbooks/)"
+  hosts: localhost
+  connection: local
+
+  vars:
+    grav_standalone_base_directory: "/tmp/grav-site-standalone-test"
+    grav_standalone_container_name: "grav-site-standalone-test"
+    grav_standalone_http_port: 18090
+    grav_standalone_image: "ghcr.io/sepp67/grav-runtime"
+    grav_standalone_version: "1.0.2"
+    grav_standalone_extra_args: >-
+      -e ansible_become=false
+      -e grav_manage_docker=false
+      -e grav_image={{ grav_standalone_image }}
+      -e grav_version={{ grav_standalone_version }}
+      -e grav_container_name={{ grav_standalone_container_name }}
+      -e grav_base_directory={{ grav_standalone_base_directory }}
+      -e grav_bind_address=127.0.0.1
+      -e grav_http_port={{ grav_standalone_http_port }}
+
+  tasks:
+    - name: "Nettoyer un éventuel reliquat d'une exécution précédente"
+      block:
+        - name: "Supprimer un éventuel conteneur/volumes précédents"
+          community.docker.docker_compose_v2:
+            project_src: "{{ grav_standalone_base_directory }}"
+            state: absent
+          when: (grav_standalone_base_directory ~ '/docker-compose.yml') is file
+
+        - name: "Supprimer un éventuel répertoire précédent (via un conteneur root)"
+          ansible.builtin.command:
+            cmd: >-
+              docker run --rm -v {{ grav_standalone_base_directory | dirname }}:/cleanup
+              alpine rm -rf /cleanup/{{ grav_standalone_base_directory | basename }}
+          when: (grav_standalone_base_directory) is directory
+          changed_when: true
+      rescue:
+        - name: "Ignorer les erreurs de nettoyage (rien à nettoyer)"
+          ansible.builtin.debug:
+            msg: "Rien à nettoyer."
+
+    - name: "Vérifier la syntaxe des playbooks autonomes"
+      ansible.builtin.command:
+        cmd: >-
+          ansible-playbook --syntax-check
+          -i {{ playbook_dir }}/inventory_grav_servers
+          {{ playbook_dir }}/../playbooks/{{ item }}
+      loop:
+        - deploy.yml
+        - check.yml
+        - restart.yml
+        - stop.yml
+      changed_when: false
+
+    - name: "Exécuter playbooks/deploy.yml (résolution du rôle depuis la racine du dépôt, sans Control Repository)"
+      ansible.builtin.command:
+        cmd: >-
+          ansible-playbook
+          -i {{ playbook_dir }}/inventory_grav_servers
+          {{ playbook_dir }}/../playbooks/deploy.yml
+          {{ grav_standalone_extra_args }}
+      changed_when: true
+
+    - name: "Vérifier l'image réellement en exécution après playbooks/deploy.yml"
+      ansible.builtin.command:
+        cmd: "docker inspect --format='{{ '{{' }}.Config.Image{{ '}}' }}' {{ grav_standalone_container_name }}"
+      register: grav_standalone_running_image
+      changed_when: false
+
+    - name: "Confirmer que l'image en exécution correspond à la version déployée"
+      ansible.builtin.assert:
+        that:
+          - grav_standalone_running_image.stdout | trim == (grav_standalone_image ~ ':' ~ grav_standalone_version)
+        fail_msg: >-
+          Image en exécution ({{ grav_standalone_running_image.stdout | trim }}) différente de
+          la version demandée à playbooks/deploy.yml ({{ grav_standalone_image }}:{{ grav_standalone_version }}).
+        quiet: true
+
+    - name: "Exécuter playbooks/check.yml (vérification, aucun changement d'état attendu)"
+      ansible.builtin.command:
+        cmd: >-
+          ansible-playbook
+          -i {{ playbook_dir }}/inventory_grav_servers
+          {{ playbook_dir }}/../playbooks/check.yml
+          {{ grav_standalone_extra_args }}
+      register: grav_standalone_check_result
+      changed_when: false
+      failed_when: grav_standalone_check_result.rc != 0
+
+    - name: "Exécuter playbooks/restart.yml"
+      ansible.builtin.command:
+        cmd: >-
+          ansible-playbook
+          -i {{ playbook_dir }}/inventory_grav_servers
+          {{ playbook_dir }}/../playbooks/restart.yml
+          {{ grav_standalone_extra_args }}
+      changed_when: true
+
+    - name: "Confirmer que le conteneur tourne toujours après playbooks/restart.yml"
+      ansible.builtin.command:
+        cmd: "docker inspect --format='{{ '{{' }}.State.Status{{ '}}' }}' {{ grav_standalone_container_name }}"
+      register: grav_standalone_status_after_restart
+      changed_when: false
+      failed_when: grav_standalone_status_after_restart.stdout | trim != 'running'
+
+    - name: "Exécuter playbooks/stop.yml"
+      ansible.builtin.command:
+        cmd: >-
+          ansible-playbook
+          -i {{ playbook_dir }}/inventory_grav_servers
+          {{ playbook_dir }}/../playbooks/stop.yml
+          {{ grav_standalone_extra_args }}
+      changed_when: true
+
+    - name: "Confirmer que le conteneur est arrêté après playbooks/stop.yml (données conservées)"
+      ansible.builtin.command:
+        cmd: "docker inspect --format='{{ '{{' }}.State.Status{{ '}}' }}' {{ grav_standalone_container_name }}"
+      register: grav_standalone_status_after_stop
+      changed_when: false
+      failed_when: grav_standalone_status_after_stop.stdout | trim != 'exited'
+
+    - name: "Confirmer que le répertoire persistant existe toujours après l'arrêt"
+      ansible.builtin.stat:
+        path: "{{ grav_standalone_base_directory }}/data/pages"
+      register: grav_standalone_pages_dir
+      failed_when: not grav_standalone_pages_dir.stat.exists
+
+    - name: "Nettoyer l'environnement de test"
+      block:
+        - name: "Arrêter et supprimer le conteneur de test"
+          community.docker.docker_compose_v2:
+            project_src: "{{ grav_standalone_base_directory }}"
+            state: absent
+
+        - name: "Supprimer le répertoire de test (via un conteneur root)"
+          ansible.builtin.command:
+            cmd: >-
+              docker run --rm -v {{ grav_standalone_base_directory | dirname }}:/cleanup
+              alpine rm -rf /cleanup/{{ grav_standalone_base_directory | basename }}
+          changed_when: true

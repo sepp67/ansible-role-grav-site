@@ -1,0 +1,7 @@
+# Inventaire de test dédié à tests/test_standalone.yml : les playbooks
+# autonomes (playbooks/deploy.yml, etc.) ciblent le groupe grav_servers,
+# contrairement à test.yml/test_env_encoding.yml qui ciblent localhost
+# directement — inventaire séparé pour ne rien changer au comportement des
+# tests existants.
+[grav_servers]
+localhost ansible_connection=local

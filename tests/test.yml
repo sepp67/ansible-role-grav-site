@@ -21,9 +21,10 @@
 # Usage (depuis la racine du dépôt) :
 #   cd tests && ansible-playbook -i inventory test.yml
 #
-# tests/ansible.cfg pointe roles_path vers le parent du dépôt, ce qui permet
-# à Ansible de résoudre le rôle par le nom de son propre répertoire
-# (ansible-role-grav-site), sans copie ni symlink.
+# Le rôle est référencé par chemin relatif à ce fichier
+# ("{{ playbook_dir }}/.."), jamais par son nom : la résolution ne dépend
+# donc jamais du nom du dossier sous lequel ce dépôt a été cloné (vérifié
+# empiriquement — voir README.md "Résolution du rôle").
 
 - name: "Test fonctionnel du rôle grav-site : redéploiement / mise à jour / rollback"
   hosts: localhost
@@ -68,9 +69,9 @@
     # ------------------------------------------------------------------
     # Phase 1 : déploiement initial de la version A
     # ------------------------------------------------------------------
-    - name: "Phase 1 : déployer la version A"
+    - name: "Phase 1 : déployer la version A"  # noqa: role-name[path]
       ansible.builtin.include_role:
-        name: ansible-role-grav-site
+        name: "{{ playbook_dir }}/.."
         public: true
       vars:
         grav_version: "{{ grav_version_a }}"
@@ -92,9 +93,9 @@
     # ------------------------------------------------------------------
     # Phase 2 : redéploiement de la MÊME version A (idempotence)
     # ------------------------------------------------------------------
-    - name: "Phase 2 : redéployer la même version A"
+    - name: "Phase 2 : redéployer la même version A"  # noqa: role-name[path]
       ansible.builtin.include_role:
-        name: ansible-role-grav-site
+        name: "{{ playbook_dir }}/.."
         public: true
       vars:
         grav_version: "{{ grav_version_a }}"
@@ -109,9 +110,9 @@
     # ------------------------------------------------------------------
     # Phase 3 : mise à jour réelle A -> B
     # ------------------------------------------------------------------
-    - name: "Phase 3 : mettre à jour vers la version B"
+    - name: "Phase 3 : mettre à jour vers la version B"  # noqa: role-name[path]
       ansible.builtin.include_role:
-        name: ansible-role-grav-site
+        name: "{{ playbook_dir }}/.."
         public: true
       vars:
         grav_version: "{{ grav_version_b }}"
@@ -126,9 +127,9 @@
     # ------------------------------------------------------------------
     # Phase 4 : rollback réel B -> A
     # ------------------------------------------------------------------
-    - name: "Phase 4 : revenir (rollback) à la version A"
+    - name: "Phase 4 : revenir (rollback) à la version A"  # noqa: role-name[path]
       ansible.builtin.include_role:
-        name: ansible-role-grav-site
+        name: "{{ playbook_dir }}/.."
         public: true
       vars:
         grav_version: "{{ grav_version_a }}"

@@ -1,0 +1,27 @@
+---
+# Déploie (création ou mise à jour) un site Grav sur le(s) hôte(s) du groupe
+# grav_servers, en appelant simplement ce rôle — aucune logique du rôle
+# n'est dupliquée ici : validation des variables obligatoires (grav_image /
+# grav_version, jamais "latest"), installation Docker, répertoires,
+# secrets, compose, healthcheck et traçabilité de version viennent tous de
+# tasks/assert.yml et des tâches qu'elle protège.
+#
+# Le rôle est référencé par CHEMIN RELATIF à ce fichier
+# ("{{ playbook_dir }}/.."), jamais par nom : la résolution ne dépend donc
+# jamais du nom du dossier sous lequel ce dépôt a été cloné (voir
+# README.md "Résolution du rôle"). `# noqa: role-name[path]` : choix
+# délibéré, vérifié empiriquement, pas un oubli.
+#
+# Usage (depuis la racine du dépôt) :
+#   ansible-playbook playbooks/deploy.yml
+#   ansible-playbook playbooks/deploy.yml --check --diff   # relecture sans exécution
+#
+# Une variable obligatoire manquante (grav_image/grav_version) ou invalide
+# (grav_version="latest", etc.) fait échouer le rôle explicitement avant
+# toute action — voir tasks/assert.yml.
+
+- name: "Déployer un site Grav (grav-runtime) sur le groupe grav_servers"
+  hosts: grav_servers
+  become: true
+  roles:
+    - role: "{{ playbook_dir }}/.."  # noqa: role-name[path]

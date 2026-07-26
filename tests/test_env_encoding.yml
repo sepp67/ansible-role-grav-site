@@ -8,6 +8,10 @@
 # manipulent sont sous no_log: true, seule la comparaison pass/fail est
 # visible dans la sortie du playbook.
 #
+# Le rôle est référencé par chemin relatif à ce fichier (voir README.md
+# "Résolution du rôle") ; `# noqa: role-name[path]` plus bas est un choix
+# délibéré, pas un oubli.
+#
 # Usage (depuis la racine du dépôt) :
 #   cd tests && ansible-playbook -i inventory test_env_encoding.yml
 
@@ -55,9 +59,9 @@
           ansible.builtin.debug:
             msg: "Rien à nettoyer."
 
-    - name: "Déployer avec un mot de passe contenant des caractères spéciaux"
+    - name: "Déployer avec un mot de passe contenant des caractères spéciaux"  # noqa: role-name[path]
       ansible.builtin.include_role:
-        name: ansible-role-grav-site
+        name: "{{ playbook_dir }}/.."
         public: true
 
     - name: "Relire GRAV_ADMIN_PASSWORD tel que reçu par le conteneur"

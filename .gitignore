@@ -1,7 +1,13 @@
+# Ansible
 *.retry
 .cache/
 __pycache__/
 *.pyc
+
+# Vault déchiffré réel — jamais commité (seul vault.yml.example l'est).
+# Couvre inventories/production/group_vars/grav_servers/vault.yml et tout
+# autre environnement créé sur ce modèle.
+**/vault.yml
 
 # OS
 .DS_Store
@@ -11,21 +17,8 @@ Thumbs.db
 .vscode/
 .idea/
 
-# Local build/test artifacts
+# Artefacts temporaires
 *.log
 
-.git
-.github
-
-# Local reference projects
+# Dépôts de référence locaux (hors périmètre Git de ce dépôt)
 /Ressources/
-
-
-README.md
-
-**/.git
-**/.gitignore
-**/docker-compose.yml
-**/compose.yml
-
-CLAUDE.md
