@@ -1,3 +1,39 @@
+
+---
+
+### 2. `ansible-role-grav-site` – Nouvelle introduction
+
+```markdown
+# ansible-role-grav-site
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Ansible](https://img.shields.io/badge/Ansible-2.17-red)](https://docs.ansible.com/)
+[![Docker](https://img.shields.io/badge/Docker-Compose-blue)](https://docs.docker.com/compose/)
+
+**Rôle Ansible pour déployer n’importe quel site basé sur `grav-runtime` de façon reproductible et sécurisée.**
+
+Ce rôle ne construit pas d’image. Il consomme une image déjà publiée (ex. `ghcr.io/sepp67/projet-gites`) et gère l’ensemble de la couche d’exploitation :
+
+- installation de Docker si nécessaire
+- volumes persistants
+- secrets (Ansible Vault)
+- healthcheck + vérification qu’une page réelle répond
+- suivi de version et rollback manuel
+
+Il peut être utilisé de **deux façons** :
+1. Comme rôle réutilisable dans un Control Repository
+2. De façon autonome (le dépôt contient déjà inventaire, playbooks et Makefile)
+
+→ Fait partie de la stack :  
+[grav-runtime](https://github.com/sepp67/grav-runtime) → [projet-gites](https://github.com/sepp67/projet-gites) → **ansible-role-grav-site**
+
+## Architecture de la stack
+
+```mermaid
+graph TD
+    A[grav-runtime<br/>Nginx + PHP-FPM + Grav Core] --> B[Image applicative<br/>thèmes + plugins + seed]
+    B --> C[ansible-role-grav-site<br/>Déploiement + volumes + secrets]
+
 # ansible-role-grav-site
 
 Rôle Ansible générique pour déployer un site basé sur [`grav-runtime`](https://github.com/sepp67/grav-runtime)

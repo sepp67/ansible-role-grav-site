@@ -33,8 +33,8 @@
   vars:
     grav_manage_docker: false
     grav_image: "ghcr.io/sepp67/grav-runtime"
-    grav_version_a: "1.0.1"
-    grav_version_b: "1.0.2"
+    grav_version_a: "1.0.2"
+    grav_version_b: "1.0.3"
     grav_container_name: "grav-site-test"
     grav_base_directory: "/tmp/grav-site-test"
     grav_bind_address: "127.0.0.1"
