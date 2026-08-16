@@ -28,6 +28,7 @@ Il peut être utilisé de **deux façons** :
 graph TD
     A[grav-runtime<br/>Nginx + PHP-FPM + Grav Core] --> B[Image applicative<br/>thèmes + plugins + seed]
     B --> C[ansible-role-grav-site<br/>Déploiement + volumes + secrets]
+```
 
 # ansible-role-grav-site
 
