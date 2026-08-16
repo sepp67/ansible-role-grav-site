@@ -1,9 +1,4 @@
 
----
-
-### 2. `ansible-role-grav-site` – Nouvelle introduction
-
-```markdown
 # ansible-role-grav-site
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
