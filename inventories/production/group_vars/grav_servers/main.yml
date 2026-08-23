@@ -14,7 +14,7 @@
 # cohérent avec deployed_versions.log tenu côté hôte cible.
 
 grav_image: "ghcr.io/sepp67/projet-gites"
-grav_version: "1.0.6"   # À REMPLACER par un tag réellement publié (ex. "1.0.0") — jamais "latest"
+grav_version: "1.0.7"   # À REMPLACER par un tag réellement publié (ex. "1.0.0") — jamais "latest"
 
 grav_container_name: "projet-gites"
 grav_base_directory: "/opt/projet-gites"
