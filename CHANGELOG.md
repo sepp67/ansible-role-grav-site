@@ -82,9 +82,12 @@ découpée en `Ajouté` / `Modifié` / `Déprécié` / `Supprimé` / `Corrigé` 
 - **Ajouté** — `.deployed_state.yml` : état de déploiement structuré (`image`,
   `declared_version`, `digest`, `effective_reference`, `deployed_at`) écrit à côté de
   `.deployed_version` (qui contient désormais la référence effective) et de
-  `deployed_versions.log`. Le journal ajoute une ligne quand la **référence effective**
-  change (version **ou** digest), jamais sur un redéploiement identique. L'historique
-  existant n'est jamais supprimé.
+  `deployed_versions.log`. Le journal (`<horodatage> <declared_version> <référence
+  effective>`) ajoute une ligne quand l'**état contractuel** change —
+  `declared_version`, `digest` ou référence effective : une nouvelle version derrière
+  un digest identique (ex. `1.0.7` → `1.0.8`, même `sha256`) est journalisée. Jamais
+  sur un redéploiement strictement identique. L'historique existant n'est jamais
+  supprimé.
 - **Modifié** — l'horodatage de la traçabilité utilise `now(utc=true)` (heure
   contrôleur) au lieu de `ansible_date_time` : la traçabilité **fonctionne sans
   `gather_facts`** (contrat §11.6). Registres de `tasks/version.yml` préfixés `_grav_`.

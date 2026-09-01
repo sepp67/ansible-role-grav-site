@@ -424,7 +424,7 @@ make vault-edit VAULT=inventories/mon-site/group_vars/grav_servers/vault.yml
 ├── data/{pages,accounts,data,images}/   # bind mounts persistants
 ├── .deployed_state.yml      # état structuré : image / declared_version / digest / effective_reference / deployed_at
 ├── .deployed_version        # une ligne : la référence effective actuellement déployée
-└── deployed_versions.log    # historique append-only (une ligne par changement de référence)
+└── deployed_versions.log    # append-only : "<horodatage> <declared_version> <référence effective>", une ligne par changement d'état contractuel
 ```
 
 ## Tests

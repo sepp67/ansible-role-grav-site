@@ -12,57 +12,77 @@
   ansible.builtin.set_fact:
     _grav_deployed_at: "{{ now(utc=true).strftime('%Y-%m-%dT%H:%M:%SZ') }}"
 
+# Lire l'état contractuel PRÉCÉDENT avant d'écrire le nouveau, pour décider
+# si le journal doit gagner une ligne. Le changement est détecté sur
+# l'ÉTAT CONTRACTUEL (declared_version + référence effective), pas seulement
+# sur la référence Docker : une nouvelle version derrière un digest
+# identique (ex. 1.0.7 -> 1.0.8, même sha256) doit être journalisée.
+- name: "Lire l'état de déploiement précédent (le cas échéant)"
+  ansible.builtin.slurp:
+    path: "{{ grav_base_directory }}/.deployed_state.yml"
+  register: _grav_prev_state_raw
+  failed_when: false
+
+- name: "Analyser l'état précédent"
+  ansible.builtin.set_fact:
+    _grav_prev_state: >-
+      {{ (_grav_prev_state_raw.content | b64decode | from_yaml)
+         if (_grav_prev_state_raw.content is defined
+             and (_grav_prev_state_raw.content | b64decode | trim | length) > 0)
+         else {} }}
+
+- name: "Déterminer si l'état contractuel a changé"
+  ansible.builtin.set_fact:
+    _grav_state_changed: >-
+      {{ _grav_prev_state.get('declared_version', '') != (grav_version | string)
+         or _grav_prev_state.get('digest', '') != grav_digest
+         or _grav_prev_state.get('effective_reference', '') != _grav_effective_reference }}
+
 # .deployed_version : une ligne, la référence Docker EFFECTIVE actuellement
-# déployée ("image:version" sans digest, "image@digest" avec). Sert de
-# marqueur de changement pour le journal ci-dessous — change dès que la
-# version OU le digest change.
+# déployée ("image:version" sans digest, "image@digest" avec). Artefact de
+# compatibilité — ne pilote plus aucune détection.
 - name: "Enregistrer la référence effective actuellement déployée"
   ansible.builtin.copy:
     content: |
       {{ _grav_effective_reference }}
     dest: "{{ grav_base_directory }}/.deployed_version"
     mode: "0644"
-  register: _grav_version_marker
 
 # .deployed_state.yml : vue structurée (contrat v1.0.1 §13.1). Écrit à
-# chaque passage ; idempotent (aucun changement si le contenu est
-# identique). deployed_at change à chaque déploiement — c'est voulu :
-# ce fichier reflète l'état courant, pas un historique.
+# chaque passage. deployed_at change à chaque déploiement — c'est voulu :
+# ce fichier reflète l'état COURANT, pas un historique.
 - name: "Enregistrer l'état de déploiement structuré (.deployed_state.yml)"
   ansible.builtin.template:
     src: deployed_state.yml.j2
     dest: "{{ grav_base_directory }}/.deployed_state.yml"
     mode: "0644"
 
-# Journal append-only : une ligne UNIQUEMENT quand la référence effective
-# change (marqueur ci-dessus effectivement modifié) — jamais sur un
-# redéploiement identique ni un simple grav_state: restarted.
+# Journal append-only : une ligne UNIQUEMENT quand l'état contractuel change
+# (declared_version, digest ou référence effective) — jamais sur un
+# redéploiement strictement identique ni un simple grav_state: restarted.
 #
 # Lecture + réécriture complète (slurp puis copy) plutôt que lineinfile :
-# lineinfile déduplique par CONTENU EXACT de ligne — un rollback vers une
-# référence déjà vue (ex. A -> B -> A) produirait, si l'horodatage était
-# figé, une ligne identique à une entrée passée, et lineinfile refuserait
-# silencieusement de l'ajouter (constaté en test, voir tests/_verify_phase.yml).
-# slurp+copy s'exécutent tous deux sur l'hôte cible (jamais le contrôleur,
-# indispensable pour un déploiement distant) et n'interpolent aucune valeur
-# dans un shell : aucun risque d'injection.
+# lineinfile déduplique par CONTENU EXACT de ligne. slurp+copy s'exécutent
+# tous deux sur l'hôte cible (jamais le contrôleur, indispensable pour un
+# déploiement distant) et n'interpolent aucune valeur dans un shell : aucun
+# risque d'injection.
 # noqa: no-handler — doit s'exécuter immédiatement pour que tests/test.yml
 # puisse vérifier le journal entre chaque inclusion du rôle dans le même play.
 - name: "Lire le journal des déploiements existant"  # noqa: no-handler
   ansible.builtin.slurp:
     path: "{{ grav_base_directory }}/deployed_versions.log"
   register: _grav_existing_log
-  when: _grav_version_marker.changed
+  when: _grav_state_changed | bool
   failed_when: false
 
 - name: "Extraire le contenu existant du journal"  # noqa: no-handler
   ansible.builtin.set_fact:
     _grav_existing_log_content: "{{ _grav_existing_log.content | default('') | b64decode }}"
-  when: _grav_version_marker.changed
+  when: _grav_state_changed | bool
 
-- name: "Ajouter la référence effective au journal des déploiements"  # noqa: no-handler
+- name: "Ajouter l'état contractuel au journal des déploiements"  # noqa: no-handler
   ansible.builtin.copy:
-    content: "{{ _grav_existing_log_content }}{{ _grav_deployed_at }} {{ _grav_effective_reference }}\n"
+    content: "{{ _grav_existing_log_content }}{{ _grav_deployed_at }} {{ grav_version }} {{ _grav_effective_reference }}\n"
     dest: "{{ grav_base_directory }}/deployed_versions.log"
     mode: "0644"
-  when: _grav_version_marker.changed
+  when: _grav_state_changed | bool

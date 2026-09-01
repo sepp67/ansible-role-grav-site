@@ -255,17 +255,22 @@ effective_reference: "ghcr.io/sepp67/projet-gites@sha256:…"
 deployed_at: "2026-09-01T12:00:00Z"
 ```
 
-Changements sur les fichiers existants (rétrocompatibles pour un déploiement **sans
-digest** — contenu identique à avant) :
+Changements sur les fichiers existants :
 
 | Fichier | Avant | Après |
 |---|---|---|
-| `.deployed_version` | `image:version` | référence effective (= `image:version` sans digest, `image@digest` avec) |
-| `deployed_versions.log` | `<iso8601> image:version`, +1 ligne si le marqueur change | `<horodatage> <référence effective>`, +1 ligne si la référence effective change (version **ou digest**) |
+| `.deployed_version` | `image:version` | référence effective (= `image:version` sans digest — **identique** ; `image@digest` avec) |
+| `deployed_versions.log` | `<iso8601> image:version` | `<horodatage> <declared_version> <référence effective>` — **une colonne `declared_version` en plus** ; +1 ligne quand l'**état contractuel** change (`declared_version`, `digest`, ou référence effective) |
 
-L'historique existant du journal **n'est jamais supprimé**. L'horodatage vient
-désormais de `now(utc=true)` (heure du contrôleur) — la traçabilité fonctionne même si
-l'appelant utilise `gather_facts: false`.
+Une **nouvelle version derrière un digest identique** (ex. `1.0.7` → `1.0.8`, même
+`sha256`) : la référence Docker effective ne change pas, mais `.deployed_state.yml`
+actualise `declared_version` **et** le journal gagne une ligne (l'état contractuel a
+changé).
+
+L'historique existant du journal **n'est jamais supprimé** (les anciennes lignes
+gardent leur format `<iso8601> image:version`). L'horodatage vient désormais de
+`now(utc=true)` (heure du contrôleur) — la traçabilité fonctionne même si l'appelant
+utilise `gather_facts: false`.
 
 **Action** : aucune. Si un script lisait `.deployed_version` en supposant le format
 `image:version`, il fonctionne toujours tant qu'aucun digest n'est utilisé ; sinon,

@@ -21,6 +21,7 @@
     _grav_trace_dir: "/tmp/grav-traceability-test"
     _grav_trace_image: "ghcr.io/example/site"
     _grav_trace_digest: "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    _grav_trace_digest_y: "sha256:fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210"
 
   tasks:
     - name: "Repartir d'un répertoire propre"
@@ -107,7 +108,7 @@
       register: _grav_trace_final
       loop: [".deployed_version", ".deployed_state.yml", "deployed_versions.log"]
 
-    - name: "Vérifier l'état final : journal = 4 lignes (A, B, A, A@digest), état = digest"
+    - name: "Vérifier l'état après le déploiement par digest (journal = 4 lignes)"
       ansible.builtin.assert:
         that:
           # A (1) -> A idem (0) -> B (1) -> A (1) -> A@digest (1) = 4 lignes
@@ -125,6 +126,78 @@
       vars:
         _state_final: "{{ _grav_trace_final.results[1].content | b64decode | from_yaml }}"
 
+    # --- Digest identique, version déclarée différente ---
+    # A = 1.0.7 + digest Y, B = 1.0.8 + digest Y.
+    # effective_reference identique (image@Y) MAIS l'état contractuel change
+    # (declared_version 1.0.7 -> 1.0.8) : le journal DOIT gagner une ligne,
+    # et .deployed_state.yml doit refléter la nouvelle version. Un second
+    # passage identique à B reste idempotent.
+    - name: "Déploiement version 1.0.7 derrière le digest Y"  # noqa: role-name[path]
+      ansible.builtin.include_role:
+        name: "{{ playbook_dir }}/.."
+        tasks_from: version
+      vars:
+        grav_image: "{{ _grav_trace_image }}"
+        grav_version: "1.0.7"
+        grav_digest: "{{ _grav_trace_digest_y }}"
+        grav_base_directory: "{{ _grav_trace_dir }}"
+
+    - name: "Lire le journal après 1.0.7 + Y"
+      ansible.builtin.slurp:
+        path: "{{ _grav_trace_dir }}/deployed_versions.log"
+      register: _grav_log_after_107y
+
+    - name: "Mise à jour vers 1.0.8, MÊME digest Y (bump de version derrière le même digest)"  # noqa: role-name[path]
+      ansible.builtin.include_role:
+        name: "{{ playbook_dir }}/.."
+        tasks_from: version
+      vars:
+        grav_image: "{{ _grav_trace_image }}"
+        grav_version: "1.0.8"
+        grav_digest: "{{ _grav_trace_digest_y }}"
+        grav_base_directory: "{{ _grav_trace_dir }}"
+
+    - name: "Redéploiement 1.0.8 + Y à l'identique (idempotence attendue)"  # noqa: role-name[path]
+      ansible.builtin.include_role:
+        name: "{{ playbook_dir }}/.."
+        tasks_from: version
+      vars:
+        grav_image: "{{ _grav_trace_image }}"
+        grav_version: "1.0.8"
+        grav_digest: "{{ _grav_trace_digest_y }}"
+        grav_base_directory: "{{ _grav_trace_dir }}"
+
+    - name: "Lire les fichiers après le bump de version derrière le même digest"
+      ansible.builtin.slurp:
+        path: "{{ _grav_trace_dir }}/{{ item }}"
+      register: _grav_trace_bump
+      loop: [".deployed_state.yml", "deployed_versions.log"]
+
+    - name: "Vérifier : effective_reference inchangée, declared_version mise à jour, +1 ligne, second passage idempotent"
+      ansible.builtin.assert:
+        that:
+          # 1.0.7+Y a ajouté 1 ligne (5) ; 1.0.8+Y en ajoute 1 (6) ; le
+          # redéploiement 1.0.8+Y identique n'ajoute rien.
+          - (_grav_log_after_107y.content | b64decode).splitlines() | length == 5
+          - (_grav_trace_bump.results[1].content | b64decode).splitlines() | length == 6
+          - _state_bump.declared_version == "1.0.8"
+          - _state_bump.digest == _grav_trace_digest_y
+          - _state_bump.effective_reference == (_grav_trace_image ~ '@' ~ _grav_trace_digest_y)
+          # la référence Docker effective n'a PAS changé entre 1.0.7 et 1.0.8
+          - (_grav_log_after_107y.content | b64decode).splitlines() | last
+            is search(_grav_trace_image ~ '@' ~ _grav_trace_digest_y)
+          - (_grav_trace_bump.results[1].content | b64decode).splitlines() | last
+            is search(_grav_trace_image ~ '@' ~ _grav_trace_digest_y)
+          # mais les deux dernières lignes portent des versions déclarées différentes
+          - "' 1.0.7 ' in ((_grav_log_after_107y.content | b64decode).splitlines() | last)"
+          - "' 1.0.8 ' in ((_grav_trace_bump.results[1].content | b64decode).splitlines() | last)"
+        fail_msg: >-
+          Bump de version derrière le même digest mal géré. Journal :
+          {{ (_grav_trace_bump.results[1].content | b64decode).splitlines() }}
+        quiet: true
+      vars:
+        _state_bump: "{{ _grav_trace_bump.results[0].content | b64decode | from_yaml }}"
+
     - name: "Nettoyer"
       ansible.builtin.file:
         path: "{{ _grav_trace_dir }}"
@@ -134,5 +207,7 @@
       ansible.builtin.debug:
         msg: >-
           Traçabilité OK : .deployed_version, .deployed_state.yml et
-          deployed_versions.log (idempotence + A->B->A + digest) — sans
-          gather_facts.
+          deployed_versions.log — idempotence, A->B->A, déploiement par
+          digest, ET bump de version derrière un digest identique
+          (declared_version mis à jour, +1 ligne, référence effective
+          inchangée) — sans gather_facts.
