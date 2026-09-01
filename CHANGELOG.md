@@ -151,6 +151,22 @@ découpée en `Ajouté` / `Modifié` / `Déprécié` / `Supprimé` / `Corrigé` 
   Debian 12 (bookworm), Ubuntu 22.04 (jammy) et Ubuntu 24.04 (noble). Le rôle peut
   continuer à fonctionner sur bullseye (le dépôt APT Docker existe encore) mais ce
   n'est ni testé ni garanti. Voir `docs/MIGRATION.md`.
+- **Ajouté** — couverture **Molecule** (`molecule/`, `requirements-test.txt`,
+  jobs CI `molecule-install` / `molecule-deploy` / `molecule-pull`) :
+  - `install` : installation de Docker + idempotence (T02/T03) sur Debian 12,
+    Ubuntu 22.04, Ubuntu 24.04 ;
+  - `deploy` : bootstrap administrateur réel (compte créé, mot de passe restitué,
+    compte non recréé), garde `admin_guard` avant `docker_compose_v2`,
+    `grav_bind_address` (127.0.0.1 / IPv4 LAN / 0.0.0.0), verdict `starting →
+    healthy` / `unhealthy → échec immédiat`, `.last_failure.log` créé `0600 root`
+    sans fuite de secret puis supprimé au retour au vert (T09–T16) ;
+  - `pull` : `pull: missing` sans consultation du registre, `grav_force_pull: true`
+    → `pull: always` avec tentative réelle (T17/T18) ;
+  - `legacy` : rejeu isolé de `tests/test*.yml` (Docker-in-Docker).
+- **Modifié** — `tests/test.yml` / `test_env_encoding.yml` / `test_standalone.yml`
+  utilisent `grav-runtime:1.0.4` (image principale) ; `1.0.3` sert la mise à jour /
+  le rollback. `grav_site_check_path: /admin` (grav-runtime nu renvoie 404 sur `/`
+  dès qu'un compte existe).
 
 ### À venir (Lots 8–9)
 

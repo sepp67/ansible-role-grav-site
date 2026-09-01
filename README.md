@@ -492,10 +492,15 @@ make vault-edit VAULT=inventories/mon-site/group_vars/grav_servers/vault.yml
 ## Tests
 
 ```bash
-ansible-lint . playbooks/ inventories/ examples/
+ansible-lint . playbooks/ inventories/ examples/ tests/ molecule/
 cd tests
+# statiques (aucun Docker)
 ansible-playbook -i inventory test_assertions.yml
 ansible-playbook -i inventory test_traceability.yml
+ansible-playbook -i inventory test_failure_log_lifecycle.yml
+ansible-playbook -i inventory test_admin_guard.yml
+ansible-playbook -i inventory test_persistence_untouched.yml
+# fonctionnels (Docker requis)
 ansible-playbook -i inventory test.yml
 ansible-playbook -i inventory test_env_encoding.yml
 ansible-playbook -i inventory test_standalone.yml
@@ -512,21 +517,37 @@ ansible-playbook -i inventory test_standalone.yml
   structuré, `.deployed_version` = référence effective, `deployed_versions.log`
   append-only (idempotence, mise à jour, rollback A→B→A, déploiement par digest).
 - `tests/test.yml` : premier déploiement, redéploiement idempotent, mise à jour et
-  rollback avec deux versions publiques réelles de `grav-runtime`, en vérifiant à
-  chaque étape l'image en exécution, la survie d'un marqueur dans `user/pages` et le
-  nombre de lignes de `deployed_versions.log`.
+  rollback avec deux versions publiques réelles de `grav-runtime` (`1.0.4` principale,
+  `1.0.3` pour la mise à jour), en vérifiant à chaque étape l'image en exécution, la
+  survie d'un marqueur dans `user/pages` et le nombre de lignes de
+  `deployed_versions.log`.
 - `tests/test_env_encoding.yml` : un mot de passe admin contenant `$ # " ' \` et des
   espaces ressort **strictement identique** dans le conteneur (comparaison masquée).
 - `tests/test_standalone.yml` : exécute réellement les playbooks de `playbooks/` en
   sous-processus, depuis un inventaire de test localhost.
 
-`grav_manage_docker: false` dans les trois — l'installation de Docker
-(`tasks/docker.yml`) est validée séparément (voir `docs/MIGRATION.md`, refonte `v2`).
+`grav_manage_docker: false` dans les trois — l'installation de Docker est validée
+par Molecule (ci-dessous).
+
+### Molecule (installation Docker + fonctionnel réel)
+
+Nécessite `requirements-test.txt` (Molecule + driver Docker) dans un venv — voir
+l'en-tête de ce fichier. Conteneurs **privilégiés + systemd**, Docker-in-Docker.
+
+| Scénario | Couvre | Plateformes |
+|---|---|---|
+| `molecule test -s install` | installation de `docker-ce` + plugin Compose (`tasks/docker.yml`) + **idempotence** | Debian 12, Ubuntu 22.04, Ubuntu 24.04 |
+| `molecule test -s deploy` | bootstrap admin réel, garde `admin_guard` avant mutation, `grav_bind_address` (127.0.0.1 / IPv4 LAN / 0.0.0.0), verdict `starting`→`healthy` / `unhealthy`, `.last_failure.log` (création + suppression) | Debian 12 |
+| `molecule test -s pull` | `pull: missing` sans consultation du registre, `grav_force_pull: true` → `pull: always` (tentative réelle) | Debian 12 |
+| `molecule test -s legacy` | rejoue `tests/test*.yml` en conteneur isolé (lent sur `vfs` — la CI utilise le job `test` sur Docker natif) | Debian 12 |
 
 Vérifications statiques (CI, sans Docker) : `ansible-lint`, `--syntax-check` des
-playbooks, validité de l'inventaire d'exemple, garde-fous (`grav_version` jamais
-`latest`, aucun `vault.yml` réel commité, aucun lien symbolique hors dépôt, aucune
-adresse de VM privée, aucune référence au `control-repository` ni à un chemin local).
+playbooks, validité de l'inventaire d'exemple, `test_assertions.yml`,
+`test_traceability.yml`, `test_failure_log_lifecycle.yml`, `test_admin_guard.yml`,
+`test_persistence_untouched.yml`, garde-fous (`grav_version` jamais `latest`, aucun
+`vault.yml` réel commité, aucun lien symbolique hors dépôt, aucune adresse de VM
+privée, aucune référence au `control-repository` ni à un chemin local, renvois
+« voir README » valides).
 
 ## Limitations connues
 
