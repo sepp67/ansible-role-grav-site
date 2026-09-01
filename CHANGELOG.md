@@ -133,6 +133,16 @@ découpée en `Ajouté` / `Modifié` / `Déprécié` / `Supprimé` / `Corrigé` 
   `grav_state: stopped` n'est pas concerné (aucun bootstrap imposé). Le rôle
   constate la **présence d'un fichier** de compte — il ne lit ni ne valide son
   contenu. Couvert par `tests/test_admin_guard.yml` (15 scénarios, sans Docker).
+- **Ajouté** — vérification après démarrage (`tasks/verify_admin_account.yml`,
+  contrat v1.0.1 §9.3.2). Après le healthcheck et **avant** `version.yml`, le rôle
+  vérifie qu'au moins un fichier `*.yaml` / `*.yml` existe dans
+  `grav_accounts_directory`. Sinon le déploiement **échoue** (message sans secret),
+  aucune entrée de traçabilité n'est écrite — un site sans fichier de compte n'est
+  jamais présenté comme déployé. Sautée pour `grav_state: stopped`. 5 scénarios
+  ajoutés à `tests/test_admin_guard.yml` ; `tests/test_persistence_untouched.yml`
+  (nouveau) prouve que `pages` / `accounts` / `data` / `images` restent intacts. Les
+  deux gardes n'utilisent que `stat` et `find` (jamais `cat` / `slurp` / `from_yaml`),
+  sous `no_log`.
 
 ### À venir (Lots 7–9)
 

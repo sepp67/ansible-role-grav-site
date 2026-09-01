@@ -220,7 +220,7 @@ pourra être ajoutée avant tout retrait en `3.0.0`.
 
 ---
 
-## 6. Garde contre une instance non initialisée (Lot 6 — appliqué : garde avant mutation)
+## 6. Garde contre une instance non initialisée (Lot 6 — appliqué)
 
 `grav-runtime` ne fournit **aucun** compte ni identifiant administrateur. Sans garde,
 une instance dont le volume `accounts` est vide démarre **non initialisée** : la
@@ -244,6 +244,19 @@ syntaxe ni leur validité fonctionnelle : « un fichier de compte est présent �
 
 L'échec intervient **avant** l'installation de Docker, la création des répertoires et
 le rendu de `grav.env` (`tasks/main.yml` : `admin_guard` juste après `assert`).
+
+### Vérification après démarrage (`tasks/verify_admin_account.yml`) — appliquée
+
+Après le healthcheck et **avant** l'enregistrement de la traçabilité (`version.yml`),
+le rôle vérifie **à nouveau** qu'au moins un fichier `*.yaml` / `*.yml` existe dans
+`grav_accounts_directory`. Sinon :
+
+- le déploiement **échoue** (message d'erreur **sans secret**) ;
+- `version.yml` n'est pas exécuté → **aucune** nouvelle entrée de traçabilité ;
+- le déploiement n'est **pas** présenté comme réussi.
+
+Sautée pour `grav_state: stopped`. Couvre : un bootstrap silencieusement raté, un
+volume `accounts` perdu depuis la garde pré-mutation, des identifiants mal transmis.
 
 **Action** : gardez `grav_admin_user` / `grav_admin_password` / `grav_admin_email`
 dans votre Vault, **y compris après le premier déploiement** — ils redeviennent

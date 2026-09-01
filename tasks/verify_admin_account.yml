@@ -1,0 +1,50 @@
+---
+# INV-08bis / contrat v1.0.1 §9.3.2 — vérification APRÈS démarrage.
+#
+# bootstrap-admin.sh (grav-runtime) s'exécute pendant le démarrage du
+# conteneur, avant nginx/php-fpm : quand le healthcheck passe "healthy", le
+# fichier <user>.yaml est déjà écrit dans le bind mount user/accounts. On
+# CONSTATE ici sa présence (jamais son contenu). Défense en profondeur
+# contre : un bootstrap silencieusement raté, un volume "accounts" perdu ou
+# vide de façon inattendue, des identifiants partiellement transmis, un
+# retour à l'écran de création du premier compte.
+#
+# Exécutée (tasks/main.yml) après healthcheck.yml et AVANT version.yml, dans
+# le bloc `when: grav_state != 'stopped'` : un déploiement sans fichier de
+# compte n'est jamais enregistré comme déployé.
+
+- name: "Vérifier l'existence du répertoire des comptes persistants (après démarrage)"
+  ansible.builtin.stat:
+    path: "{{ grav_accounts_directory }}"
+  register: _grav_post_accounts_dir
+  no_log: true
+
+- name: "Rechercher un fichier de compte persistant après démarrage (métadonnées seules)"
+  ansible.builtin.find:
+    paths: "{{ grav_accounts_directory }}"
+    patterns:
+      - "*.yaml"
+      - "*.yml"
+    file_type: file
+    recurse: false
+  register: _grav_post_accounts
+  when:
+    - _grav_post_accounts_dir.stat.exists | default(false)
+    - _grav_post_accounts_dir.stat.isdir | default(false)
+  no_log: true
+
+- name: "Exiger la présence d'un fichier de compte persistant (§9.3.2)"
+  ansible.builtin.assert:
+    that:
+      - ((_grav_post_accounts.matched | default(0)) | int) > 0
+    fail_msg: >-
+      Après le démarrage de {{ grav_container_name }}, aucun fichier de
+      compte persistant (*.yaml / *.yml) n'existe dans le volume "accounts".
+      Grav reste NON INITIALISÉ : la création du premier compte serait
+      accessible depuis /admin. Le déploiement est considéré comme ÉCHOUÉ et
+      n'est pas enregistré dans la traçabilité. Causes possibles : bootstrap
+      non exécuté, volume "accounts" vide ou perdu, identifiants
+      partiellement fournis. Fournissez grav_admin_user, grav_admin_password
+      et grav_admin_email (les trois, via un vault) puis relancez le
+      déploiement.
+    quiet: true

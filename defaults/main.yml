@@ -67,7 +67,8 @@ grav_container_gid: 82
 #     compte persistant (*.yaml/*.yml) dans grav_accounts_directory
 #     (contrat v1.0.1 §9.3.1, tasks/admin_guard.yml). Sans compte prouvé et
 #     sans identifiants, Grav démarrerait non initialisé (création du
-#     premier compte ouverte sur /admin).
+#     premier compte ouverte sur /admin). Après démarrage, le rôle vérifie
+#     à nouveau qu'un fichier de compte existe (tasks/verify_admin_account.yml).
 grav_admin_user: ""
 grav_admin_password: ""
 grav_admin_email: ""

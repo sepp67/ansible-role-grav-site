@@ -420,6 +420,15 @@ contenu de ces fichiers et ne juge ni leur syntaxe ni leur validité fonctionnel
 | absent ou présent | **partielles (1–2 sur 3)** | tout état | **échec** (règle « les trois ou aucune ») |
 | absent | aucune | `stopped` | autorisé — `stopped` n'impose aucun bootstrap |
 
+**Vérification après démarrage** (`tasks/verify_admin_account.yml`, après le
+healthcheck, avant la traçabilité — sautée pour `grav_state: stopped`). Le rôle
+vérifie **à nouveau** qu'au moins un fichier `*.yaml` / `*.yml` existe dans
+`grav_accounts_directory`. Sinon le déploiement **échoue** (message sans secret),
+`version.yml` n'est pas exécuté et aucune entrée de traçabilité n'est écrite : un site
+sans fichier de compte n'est jamais présenté comme correctement déployé. Cette
+vérification couvre un bootstrap silencieusement raté, un volume `accounts` perdu, des
+identifiants mal transmis.
+
 Gardez vos identifiants administrateur dans votre Vault, **y compris après le premier
 déploiement** : ils redeviennent nécessaires si le volume `accounts` est perdu.
 

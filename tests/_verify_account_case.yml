@@ -1,0 +1,38 @@
+---
+# Inclus par tests/test_admin_guard.yml. Rejoue verify_admin_account.yml
+# (§9.3.2) sur un répertoire accounts préparé selon vacase.accounts, et
+# compare l'échec observé à vacase.expect_fail.
+
+- name: "Scénario verify_admin_account : {{ vacase.label }}"
+  block:
+    - name: "Réinitialiser l'indicateur d'échec"
+      ansible.builtin.set_fact:
+        _grav_va_failed: false
+
+    - name: "Préparer le répertoire accounts du scénario"
+      ansible.builtin.include_tasks: _admin_guard_prepare.yml
+      vars:
+        agcase: "{{ vacase }}"
+
+    - name: "Rejouer verify_admin_account.yml"  # noqa: role-name[path]
+      ansible.builtin.include_role:
+        name: "{{ playbook_dir }}/.."
+        tasks_from: verify_admin_account
+      vars:
+        grav_accounts_directory: "{{ _grav_ag_dir }}/data/accounts"
+        grav_container_name: "grav-site-test"
+
+  rescue:
+    - name: "Marquer l'échec observé"
+      ansible.builtin.set_fact:
+        _grav_va_failed: true
+
+  always:
+    - name: "Vérifier le résultat du scénario"
+      ansible.builtin.assert:
+        that:
+          - _grav_va_failed == vacase.expect_fail
+        fail_msg: >-
+          Scénario verify '{{ vacase.label }}' : échec attendu={{ vacase.expect_fail }},
+          observé={{ _grav_va_failed }}.
+        quiet: true

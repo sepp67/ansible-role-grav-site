@@ -62,6 +62,10 @@ jobs:
         run: |
           cd tests
           ansible-playbook -i inventory test_admin_guard.yml
+      - name: "Persistance intacte après les gardes administrateur (aucun Docker)"
+        run: |
+          cd tests
+          ansible-playbook -i inventory test_persistence_untouched.yml
       - name: "grav_version de l'exemple jamais 'latest'"
         run: |
           ! grep -E '^\s*grav_version:\s*"?latest"?\s*$' \

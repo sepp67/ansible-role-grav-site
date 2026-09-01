@@ -28,5 +28,8 @@
     - name: "Attendre le healthcheck et vérifier que le site répond"
       ansible.builtin.import_tasks: healthcheck.yml
 
+    - name: "Vérifier qu'un fichier de compte administrateur persistant existe (contrat v1.0.1 §9.3.2)"
+      ansible.builtin.import_tasks: verify_admin_account.yml
+
     - name: "Enregistrer la version déployée"
       ansible.builtin.import_tasks: version.yml

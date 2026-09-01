@@ -1,0 +1,127 @@
+---
+# T (Lot 6) — les gardes administrateur ne touchent AUCUN des 4 volumes
+# persistants. Aucun Docker, aucune VM.
+#
+# Dépose une sentinelle (+ somme sha1) dans pages / accounts / data /
+# images, rejoue admin_guard.yml PUIS verify_admin_account.yml, et vérifie
+# que chaque volume est strictement identique (mêmes chemins, mêmes sommes)
+# — aucun fichier ajouté, supprimé ou modifié.
+#
+# Usage (depuis la racine du dépôt) :
+#   cd tests && ansible-playbook -i inventory test_persistence_untouched.yml
+
+- name: "T — persistance intacte après les gardes administrateur (aucun Docker)"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    _grav_pu_dir: "/tmp/grav-persist-untouched-test"
+    _grav_pu_volumes: [pages, accounts, data, images]
+
+  tasks:
+    - name: "Repartir d'un répertoire d'instance propre"
+      ansible.builtin.file:
+        path: "{{ _grav_pu_dir }}"
+        state: "{{ item }}"
+        mode: "0755"
+      loop: [absent, directory]
+
+    - name: "Créer les 4 volumes persistants"
+      ansible.builtin.file:
+        path: "{{ _grav_pu_dir }}/data/{{ item }}"
+        state: directory
+        mode: "0755"
+      loop: "{{ _grav_pu_volumes }}"
+
+    - name: "Déposer une sentinelle par volume"
+      ansible.builtin.copy:
+        content: "sentinelle {{ item }} — ne doit jamais être touchée\n"
+        dest: "{{ _grav_pu_dir }}/data/{{ item }}/.sentinelle"
+        mode: "0644"
+      loop: "{{ _grav_pu_volumes }}"
+
+    - name: "Déposer un fichier de compte (pour que les deux gardes passent)"
+      ansible.builtin.copy:
+        content: "# faux compte — jamais lu par le rôle\n"
+        dest: "{{ _grav_pu_dir }}/data/accounts/zzadmin.yaml"
+        mode: "0600"
+
+    - name: "Empreinte AVANT (contenu récursif de chaque volume)"
+      ansible.builtin.find:
+        paths: "{{ _grav_pu_dir }}/data/{{ item }}"
+        patterns: "*"
+        hidden: true
+        recurse: true
+        get_checksum: true
+      register: _grav_pu_before
+      loop: "{{ _grav_pu_volumes }}"
+
+    - name: "Rejouer assert.yml (contexte cohérent)"  # noqa: role-name[path]
+      ansible.builtin.include_role:
+        name: "{{ playbook_dir }}/.."
+        tasks_from: assert
+      vars:
+        grav_image: "ghcr.io/example/site"
+        grav_version: "1.0.0"
+        grav_bind_address: "127.0.0.1"
+        grav_base_directory: "{{ _grav_pu_dir }}"
+        grav_accounts_directory: "{{ _grav_pu_dir }}/data/accounts"
+
+    - name: "Rejouer admin_guard.yml"  # noqa: role-name[path]
+      ansible.builtin.include_role:
+        name: "{{ playbook_dir }}/.."
+        tasks_from: admin_guard
+      vars:
+        grav_base_directory: "{{ _grav_pu_dir }}"
+        grav_accounts_directory: "{{ _grav_pu_dir }}/data/accounts"
+        grav_state: started
+        grav_admin_user: ""
+        grav_admin_password: ""
+        grav_admin_email: ""
+
+    - name: "Rejouer verify_admin_account.yml"  # noqa: role-name[path]
+      ansible.builtin.include_role:
+        name: "{{ playbook_dir }}/.."
+        tasks_from: verify_admin_account
+      vars:
+        grav_accounts_directory: "{{ _grav_pu_dir }}/data/accounts"
+        grav_container_name: "grav-site"
+
+    - name: "Empreinte APRÈS"
+      ansible.builtin.find:
+        paths: "{{ _grav_pu_dir }}/data/{{ item }}"
+        patterns: "*"
+        hidden: true
+        recurse: true
+        get_checksum: true
+      register: _grav_pu_after
+      loop: "{{ _grav_pu_volumes }}"
+
+    - name: "Vérifier : chaque volume strictement identique (chemins + sommes)"
+      ansible.builtin.assert:
+        that:
+          - (_grav_pu_before.results[idx].files | map(attribute='path') | sort)
+            == (_grav_pu_after.results[idx].files | map(attribute='path') | sort)
+          - (_grav_pu_before.results[idx].files | map(attribute='checksum') | sort)
+            == (_grav_pu_after.results[idx].files | map(attribute='checksum') | sort)
+        fail_msg: >-
+          Le volume "{{ _grav_pu_volumes[idx] }}" a changé pendant les gardes
+          administrateur.
+        quiet: true
+      loop: "{{ range(_grav_pu_volumes | length) | list }}"
+      loop_control:
+        loop_var: idx
+        label: "{{ _grav_pu_volumes[idx] }}"
+
+    - name: "Nettoyer"
+      ansible.builtin.file:
+        path: "{{ _grav_pu_dir }}"
+        state: absent
+
+    - name: "Persistance intacte"
+      ansible.builtin.debug:
+        msg: >-
+          admin_guard.yml + verify_admin_account.yml : pages / accounts /
+          data / images inchangés (chemins et sommes de contrôle identiques
+          avant / après).

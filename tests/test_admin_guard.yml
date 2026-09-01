@@ -1,10 +1,10 @@
 ---
-# T09 / T10 / T11 (partie hors ligne) — contrat v1.0.1 §9.3.1.
+# T09 / T10 / T11 (partie hors ligne) — contrat v1.0.1 §9.3.1 et §9.3.2.
 #
-# Rejoue assert.yml + admin_guard.yml (aucun Docker, aucune VM, aucune
-# mutation d'un volume réel) sur la matrice normative de protection
-# administrateur, et vérifie que chaque scénario échoue — ou passe —
-# exactement comme la matrice l'exige.
+# Rejoue assert.yml + admin_guard.yml puis verify_admin_account.yml (aucun
+# Docker, aucune VM, aucune mutation d'un volume réel) sur la matrice
+# normative de protection administrateur, et vérifie que chaque scénario
+# échoue — ou passe — exactement comme la matrice l'exige.
 #
 # Ne couvre PAS (reste TEST GAP, Docker, Lot 7/8) : la création réelle du
 # fichier <user>.yaml par bin/plugin login new-user, la restitution du mot
@@ -102,23 +102,48 @@
         state: restarted
         expect_fail: true
 
+    # Vérification APRÈS démarrage (§9.3.2) — verify_admin_account.yml.
+    _grav_va_scenarios:
+      - label: "compte .yaml présent -> OK"
+        accounts: yaml
+        expect_fail: false
+      - label: "compte .yml présent -> OK"
+        accounts: yml
+        expect_fail: false
+      - label: "répertoire vide -> échec (Grav non initialisé)"
+        accounts: empty
+        expect_fail: true
+      - label: "répertoire avec .gitkeep seul -> échec"
+        accounts: gitkeep
+        expect_fail: true
+      - label: "répertoire absent -> échec"
+        accounts: absent
+        expect_fail: true
+
   tasks:
-    - name: "Jouer chaque scénario de la matrice §9.3.1"
+    - name: "Jouer chaque scénario de la matrice §9.3.1 (garde avant mutation)"
       ansible.builtin.include_tasks: _admin_guard_case.yml
       loop: "{{ _grav_ag_scenarios }}"
       loop_control:
         loop_var: agcase
         label: "{{ agcase.label }}"
 
+    - name: "Jouer chaque scénario de la vérification post-démarrage §9.3.2"
+      ansible.builtin.include_tasks: _verify_account_case.yml
+      loop: "{{ _grav_va_scenarios }}"
+      loop_control:
+        loop_var: vacase
+        label: "{{ vacase.label }}"
+
     - name: "Nettoyer"
       ansible.builtin.file:
         path: "{{ _grav_ag_dir }}"
         state: absent
 
-    - name: "Matrice §9.3.1 vérifiée"
+    - name: "Matrices §9.3.1 et §9.3.2 vérifiées"
       ansible.builtin.debug:
         msg: >-
-          {{ _grav_ag_scenarios | length }} scénarios de la matrice de
-          protection administrateur vérifiés : répertoire absent / vide /
-          .gitkeep / *.yaml / *.yml × 0/partiel/3 variables × started /
-          stopped / restarted.
+          {{ _grav_ag_scenarios | length }} scénarios de garde avant mutation
+          + {{ _grav_va_scenarios | length }} scénarios de vérification
+          post-démarrage : répertoire absent / vide / .gitkeep / *.yaml /
+          *.yml × 0/partiel/3 variables × started / stopped / restarted.
