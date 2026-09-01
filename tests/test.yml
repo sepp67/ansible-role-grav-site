@@ -46,6 +46,9 @@
     grav_admin_user: "testadmin"
     grav_admin_password: "test-password-not-a-real-secret"
     grav_admin_email: "testadmin@example.test"
+    # grav-runtime nu + compte admin bootstrapé : "/" répond 404 (pas de
+    # redirection vers /admin dès qu'un compte existe), "/admin" répond 200.
+    grav_site_check_path: "/admin"
 
   tasks:
     - name: "Nettoyer un éventuel reliquat d'une exécution précédente"

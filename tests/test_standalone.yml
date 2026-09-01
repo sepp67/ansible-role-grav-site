@@ -51,6 +51,7 @@
       -e grav_admin_user=standaloneadmin
       -e grav_admin_password=standalone-not-a-real-secret
       -e grav_admin_email=standaloneadmin@example.test
+      -e grav_site_check_path=/admin
 
   tasks:
     - name: "Nettoyer un éventuel reliquat d'une exécution précédente"
