@@ -1,0 +1,142 @@
+---
+# T01 (contrat v1.0.1 §17) — Validation des variables obligatoires avant
+# mutation. Rejoue UNIQUEMENT tasks/assert.yml (aucun Docker, aucune
+# mutation, aucun réseau) sur une matrice de scénarios valides/invalides,
+# et vérifie que chacun échoue — ou réussit — exactement comme attendu.
+#
+# Complète tests/test.yml (qui exerce le déploiement réel avec des
+# variables déjà valides) en couvrant le chemin d'échec, jusqu'ici un
+# angle mort (préflight : REQ-002/T01 = TEST GAP).
+#
+# Le rôle est référencé par chemin relatif à ce fichier (voir README.md
+# "Résolution du rôle").
+#
+# Usage (depuis la racine du dépôt) :
+#   cd tests && ansible-playbook -i inventory test_assertions.yml
+
+- name: "T01 — Validation des variables du rôle avant toute mutation"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    # Baseline valide minimale : les variables sans défaut (obligatoires)
+    # uniquement. Tout le reste vient de defaults/main.yml, déjà valide.
+    _grav_baseline:
+      grav_image: "ghcr.io/example/site"
+      grav_version: "1.0.0"
+      grav_bind_address: "127.0.0.1"
+
+    _grav_assert_scenarios:
+      # --- Baseline ---
+      - label: "baseline valide"
+        expect_fail: false
+        overrides: {}
+
+      # --- grav_image / grav_version (existant) ---
+      - label: "grav_image absente"
+        expect_fail: true
+        overrides: {grav_image: ""}
+      - label: "grav_version absente"
+        expect_fail: true
+        overrides: {grav_version: ""}
+      - label: "grav_version = latest"
+        expect_fail: true
+        overrides: {grav_version: "latest"}
+
+      # --- grav_image : forme (Lot 3) ---
+      - label: "grav_image avec tag incorporé"
+        expect_fail: true
+        overrides: {grav_image: "ghcr.io/example/site:1.0.0"}
+      - label: "grav_image avec digest incorporé"
+        expect_fail: true
+        overrides: {grav_image: "ghcr.io/example/site@sha256:0000000000000000000000000000000000000000000000000000000000000000"}
+      - label: "grav_image nom nu avec tag"
+        expect_fail: true
+        overrides: {grav_image: "projet-grav:1.0"}
+      - label: "grav_image registre avec port"
+        expect_fail: false
+        overrides: {grav_image: "registry.example.net:5000/projet-grav"}
+      - label: "grav_image nom nu sans tag"
+        expect_fail: false
+        overrides: {grav_image: "projet-grav"}
+
+      # --- grav_bind_address obligatoire + forme (Lot 3) ---
+      - label: "grav_bind_address absente"
+        expect_fail: true
+        overrides: {grav_bind_address: ""}
+      - label: "grav_bind_address = nom d'hôte"
+        expect_fail: true
+        overrides: {grav_bind_address: "not-an-ip"}
+      - label: "grav_bind_address = octet hors plage"
+        expect_fail: true
+        overrides: {grav_bind_address: "999.1.1.1"}
+      - label: "grav_bind_address = 0.0.0.0"
+        expect_fail: false
+        overrides: {grav_bind_address: "0.0.0.0"}
+      - label: "grav_bind_address = adresse LAN"
+        expect_fail: false
+        overrides: {grav_bind_address: "192.168.1.10"}
+      - label: "grav_bind_address = IPv6 littérale"
+        expect_fail: false
+        overrides: {grav_bind_address: "::1"}
+
+      # --- grav_admin_type (Lot 3) ---
+      - label: "grav_admin_type invalide"
+        expect_fail: true
+        overrides: {grav_admin_type: "superadmin"}
+      - label: "grav_admin_type = both"
+        expect_fail: false
+        overrides: {grav_admin_type: "both"}
+
+      # --- grav_extra_environment : clés (Lot 3) ---
+      - label: "grav_extra_environment clé minuscule"
+        expect_fail: true
+        overrides: {grav_extra_environment: {grav_custom: "x"}}
+      - label: "grav_extra_environment clé sans préfixe GRAV_"
+        expect_fail: true
+        overrides: {grav_extra_environment: {CUSTOM_FLAG: "1"}}
+      - label: "grav_extra_environment clé réservée GRAV_ADMIN_USER"
+        expect_fail: true
+        overrides: {grav_extra_environment: {GRAV_ADMIN_USER: "x"}}
+      - label: "grav_extra_environment clé réservée GRAV_TIMEZONE"
+        expect_fail: true
+        overrides: {grav_extra_environment: {GRAV_TIMEZONE: "x"}}
+      - label: "grav_extra_environment clé valide"
+        expect_fail: false
+        overrides: {grav_extra_environment: {GRAV_CUSTOM_FLAG: "1"}}
+
+      # --- Identifiants admin : tri-state (existant) ---
+      - label: "identifiants admin partiels (1 sur 3)"
+        expect_fail: true
+        overrides: {grav_admin_user: "admin"}
+      - label: "identifiants admin complets (3 sur 3)"
+        expect_fail: false
+        overrides: {grav_admin_user: "admin", grav_admin_password: "secret", grav_admin_email: "admin@example.test"}
+
+  tasks:
+    - name: "Jouer chaque scénario de la matrice fail/pass"
+      ansible.builtin.include_tasks: _assert_scenario.yml
+      loop: "{{ _grav_assert_scenarios }}"
+      loop_control:
+        loop_var: scenario
+        label: "{{ scenario.label }}"
+
+    # Cas à part (pas fail/pass mais valeur+avertissement) : un chemin
+    # persistant personnalisé doit être HONORÉ (le rôle ne doit pas
+    # échouer) — seul un avertissement [DEPRECATED] est attendu en sortie,
+    # vérifié visuellement ci-dessous (ce test n'automatise pas la capture
+    # du message debug, seulement l'absence d'échec).
+    - name: "Chemin persistant personnalisé : doit réussir (avertissement de dépréciation attendu ci-dessus)"  # noqa: role-name[path]
+      ansible.builtin.include_role:
+        name: "{{ playbook_dir }}/.."
+        tasks_from: assert
+      vars:
+        grav_image: "{{ _grav_baseline.grav_image }}"
+        grav_version: "{{ _grav_baseline.grav_version }}"
+        grav_bind_address: "{{ _grav_baseline.grav_bind_address }}"
+        grav_pages_directory: "/mnt/other-disk/pages"
+
+    - name: "Tous les scénarios ont produit le résultat attendu"
+      ansible.builtin.debug:
+        msg: "{{ _grav_assert_scenarios | length }} scénarios de la matrice + 1 cas dérivé vérifiés avec succès."

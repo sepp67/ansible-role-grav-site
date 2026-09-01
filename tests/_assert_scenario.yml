@@ -1,0 +1,50 @@
+---
+# Fichier inclus par tests/test_assertions.yml, une fois par scénario (via
+# include_tasks + loop — un `block` ne supporte pas `loop` directement,
+# constaté en test).
+#
+# Rejoue tasks/assert.yml avec les variables de baseline surchargées par
+# `scenario.overrides`, et compare l'échec effectivement observé à
+# `scenario.expect_fail`.
+#
+# `vars:` d'un include_role doit être un mapping YAML LITTÉRAL (constaté en
+# test : un dict entièrement templaté, ex. "{{ a | combine(b) }}", est
+# refusé par Ansible avec "Vars in a IncludeRole must be specified as a
+# dictionary"). Chaque valeur est donc templatée individuellement, avec
+# repli sur la baseline via .get() — jamais de set_fact cumulatif, qui
+# laisserait une valeur d'un scénario précédent fuiter dans le suivant.
+
+- name: "Scénario : {{ scenario.label }}"
+  block:
+    - name: "Réinitialiser l'indicateur d'échec"
+      ansible.builtin.set_fact:
+        _grav_scenario_failed: false
+
+    - name: "Jouer assert.yml avec les variables du scénario"  # noqa: role-name[path]
+      ansible.builtin.include_role:
+        name: "{{ playbook_dir }}/.."
+        tasks_from: assert
+      vars:
+        grav_image: "{{ scenario.overrides.get('grav_image', _grav_baseline.grav_image) }}"
+        grav_version: "{{ scenario.overrides.get('grav_version', _grav_baseline.grav_version) }}"
+        grav_bind_address: "{{ scenario.overrides.get('grav_bind_address', _grav_baseline.grav_bind_address) }}"
+        grav_admin_type: "{{ scenario.overrides.get('grav_admin_type', '') }}"
+        grav_extra_environment: "{{ scenario.overrides.get('grav_extra_environment', {}) }}"
+        grav_admin_user: "{{ scenario.overrides.get('grav_admin_user', '') }}"
+        grav_admin_password: "{{ scenario.overrides.get('grav_admin_password', '') }}"
+        grav_admin_email: "{{ scenario.overrides.get('grav_admin_email', '') }}"
+
+  rescue:
+    - name: "Marquer l'échec observé"
+      ansible.builtin.set_fact:
+        _grav_scenario_failed: true
+
+  always:
+    - name: "Vérifier le résultat du scénario"
+      ansible.builtin.assert:
+        that:
+          - _grav_scenario_failed == scenario.expect_fail
+        fail_msg: >-
+          Scénario '{{ scenario.label }}' : échec attendu={{ scenario.expect_fail }},
+          observé={{ _grav_scenario_failed }}.
+        quiet: true

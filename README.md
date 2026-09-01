@@ -402,11 +402,17 @@ make vault-edit VAULT=inventories/mon-site/group_vars/grav_servers/vault.yml
 ```bash
 ansible-lint . playbooks/ inventories/ examples/
 cd tests
+ansible-playbook -i inventory test_assertions.yml
 ansible-playbook -i inventory test.yml
 ansible-playbook -i inventory test_env_encoding.yml
 ansible-playbook -i inventory test_standalone.yml
 ```
 
+- `tests/test_assertions.yml` : rejoue **uniquement** `tasks/assert.yml` (aucun
+  Docker, aucune mutation) sur ~25 scénarios valides/invalides — présence et forme
+  de `grav_image`/`grav_bind_address`, `grav_admin_type`, clés de
+  `grav_extra_environment`, tri-state admin, surcharge honorée d'un chemin dérivé.
+  Vérifie que chaque scénario échoue — ou réussit — exactement comme attendu.
 - `tests/test.yml` : premier déploiement, redéploiement idempotent, mise à jour et
   rollback avec deux versions publiques réelles de `grav-runtime`, en vérifiant à
   chaque étape l'image en exécution, la survie d'un marqueur dans `user/pages` et le

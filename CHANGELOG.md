@@ -53,6 +53,9 @@ découpée en `Ajouté` / `Modifié` / `Déprécié` / `Supprimé` / `Corrigé` 
 - **Modifié** — les clés de `grav_extra_environment` sont désormais validées
   (`^GRAV_[A-Z0-9_]+$`) et ne peuvent plus écraser silencieusement une variable déjà
   gérée par le rôle (`GRAV_ADMIN_*`, `GRAV_TIMEZONE`).
+- **Ajouté** — `tests/test_assertions.yml` (T01) : ~25 scénarios valides/invalides
+  rejouant uniquement `tasks/assert.yml`, sans Docker. Intégré à la CI
+  (`static-checks`).
 
 ### À venir (Lots 4–9, changements d'interface — `2.0.0`)
 

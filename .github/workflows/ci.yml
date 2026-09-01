@@ -46,6 +46,10 @@ jobs:
           done
       - name: "Validité de l'inventaire d'exemple"
         run: ansible-inventory -i inventories/example/hosts.yml --list >/dev/null
+      - name: "T01 — Validation des variables du rôle (aucun Docker requis)"
+        run: |
+          cd tests
+          ansible-playbook -i inventory test_assertions.yml
       - name: "grav_version de l'exemple jamais 'latest'"
         run: |
           ! grep -E '^\s*grav_version:\s*"?latest"?\s*$' \
