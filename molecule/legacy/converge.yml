@@ -1,0 +1,51 @@
+---
+- name: "Converge — rejouer les tests Docker en playbook du dépôt"
+  hosts: all
+  gather_facts: false
+
+  vars:
+    _grav_l7_repo: /opt/grav-repo
+    # Le storage-driver vfs (imbrication) rend le bootstrap Grav CLI très
+    # lent : on élargit la fenêtre de santé pour CES exécutions uniquement
+    # (le job CI "test" tourne sur Docker natif overlay2 avec les défauts).
+    _grav_l7_slow: >-
+      -e grav_healthcheck_start_period=240s
+      -e grav_deploy_wait_retries=90
+      -e grav_deploy_wait_delay=8
+      -e grav_site_check_retries=30
+
+  tasks:
+    - name: "Rejouer tests/test.yml — redéploiement / mise à jour / rollback (T04–T08)"
+      ansible.builtin.command:
+        cmd: "ansible-playbook -i inventory test.yml {{ _grav_l7_slow }}"
+        chdir: "{{ _grav_l7_repo }}/tests"
+      environment:
+        ANSIBLE_FORCE_COLOR: "0"
+      changed_when: true
+
+    - name: "Rejouer tests/test_env_encoding.yml — encodage grav.env + bootstrap réel (T09/T16)"
+      ansible.builtin.command:
+        cmd: "ansible-playbook -i inventory test_env_encoding.yml {{ _grav_l7_slow }}"
+        chdir: "{{ _grav_l7_repo }}/tests"
+      environment:
+        ANSIBLE_FORCE_COLOR: "0"
+      changed_when: true
+
+    - name: "Rejouer tests/test_standalone.yml — couche autonome playbooks/ (deploy/check/restart/stop)"
+      ansible.builtin.command:
+        cmd: >-
+          ansible-playbook -i inventory test_standalone.yml
+          -e grav_standalone_start_period=240s
+          -e grav_standalone_wait_retries=90
+          -e grav_standalone_wait_delay=8
+        chdir: "{{ _grav_l7_repo }}/tests"
+      environment:
+        ANSIBLE_FORCE_COLOR: "0"
+      changed_when: true
+
+    - name: "Tests Docker en playbook rejoués avec succès dans le conteneur isolé"
+      ansible.builtin.debug:
+        msg: >-
+          test.yml, test_env_encoding.yml et test_standalone.yml exécutés en
+          Docker-in-Docker — la workstation n'a hébergé qu'un conteneur
+          molecule.
