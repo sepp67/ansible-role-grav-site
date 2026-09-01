@@ -127,6 +127,23 @@
         expect_fail: true
         overrides: {grav_bind_address: "[::1]"}
 
+      # --- grav_site_check_host : override (Lot 5) ---
+      - label: "grav_site_check_host vide (dérivé — accepté)"
+        expect_fail: false
+        overrides: {grav_site_check_host: ""}
+      - label: "grav_site_check_host = 127.0.0.1 (override IPv4 — accepté)"
+        expect_fail: false
+        overrides: {grav_site_check_host: "127.0.0.1"}
+      - label: "grav_site_check_host = localhost (override nom — accepté)"
+        expect_fail: false
+        overrides: {grav_site_check_host: "localhost"}
+      - label: "grav_site_check_host = ::1 (IPv6 — refusé)"
+        expect_fail: true
+        overrides: {grav_site_check_host: "::1"}
+      - label: "grav_site_check_host = 127.0.0.1:9000 (port embarqué — refusé)"
+        expect_fail: true
+        overrides: {grav_site_check_host: "127.0.0.1:9000"}
+
       # --- grav_admin_type (Lot 3) ---
       # Contrat vérifié dans grav-runtime docker/bootstrap-admin.sh:62-69 :
       # seules '', admin, api, both. "site" appartient au prompt "Permissions"
@@ -211,8 +228,36 @@
         loop_var: refcase
         label: "{{ refcase.label }}"
 
+    # Dérivation de _grav_site_check_host depuis grav_bind_address (Lot 5,
+    # vars/main.yml) : adresse précise -> la même ; 0.0.0.0 -> 127.0.0.1 ;
+    # override explicite -> respecté tel quel.
+    - name: "Vérifier la dérivation de _grav_site_check_host pour chaque cas réseau"
+      ansible.builtin.include_tasks: _network_case.yml
+      loop:
+        - label: "bind loopback -> même adresse"
+          bind: "127.0.0.1"
+          expected: "127.0.0.1"
+        - label: "bind IP LAN -> même adresse"
+          bind: "192.168.1.10"
+          expected: "192.168.1.10"
+        - label: "bind 0.0.0.0 -> 127.0.0.1"
+          bind: "0.0.0.0"
+          expected: "127.0.0.1"
+        - label: "override explicite prioritaire sur la dérivation"
+          bind: "192.168.1.10"
+          override: "10.9.9.9"
+          expected: "10.9.9.9"
+        - label: "override explicite face à un bind 0.0.0.0"
+          bind: "0.0.0.0"
+          override: "127.0.0.1"
+          expected: "127.0.0.1"
+      loop_control:
+        loop_var: netcase
+        label: "{{ netcase.label }}"
+
     - name: "Tous les scénarios ont produit le résultat attendu"
       ansible.builtin.debug:
         msg: >-
           {{ _grav_assert_scenarios | length }} scénarios d'assertion
-          + 1 cas dérivé + 2 cas de référence effective vérifiés avec succès.
+          + 1 cas dérivé + 2 cas de référence effective
+          + 5 cas de dérivation réseau vérifiés avec succès.

@@ -1,0 +1,34 @@
+---
+# Fichier inclus par tests/test_assertions.yml, une fois par cas réseau.
+#
+# Vérifie la dérivation de _grav_site_check_host (vars/main.yml) à partir de
+# grav_bind_address et d'un éventuel override grav_site_check_host — sans
+# Docker, sans réseau, sans mutation.
+#
+# Les variables du cas sont posées en facts de play (persistantes, écrasées
+# à chaque itération) puis le rôle est inclus avec public: true pour exposer
+# ses dérivés (_grav_*) aux tâches suivantes.
+
+- name: "Poser les variables du cas réseau : {{ netcase.label }}"
+  ansible.builtin.set_fact:
+    grav_image: "{{ _grav_baseline.grav_image }}"
+    grav_version: "{{ _grav_baseline.grav_version }}"
+    grav_bind_address: "{{ netcase.bind }}"
+    grav_site_check_host: "{{ netcase.override | default('') }}"
+
+- name: "Charger les dérivés du rôle pour ce cas"  # noqa: role-name[path]
+  ansible.builtin.include_role:
+    name: "{{ playbook_dir }}/.."
+    tasks_from: assert
+    public: true
+
+- name: "Vérifier la dérivation de _grav_site_check_host"
+  ansible.builtin.assert:
+    that:
+      - _grav_site_check_host == netcase.expected
+    fail_msg: >-
+      Cas '{{ netcase.label }}' : bind={{ netcase.bind }},
+      override='{{ netcase.override | default('') }}' →
+      _grav_site_check_host attendu '{{ netcase.expected }}',
+      obtenu '{{ _grav_site_check_host }}'.
+    quiet: true

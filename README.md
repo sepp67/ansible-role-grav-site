@@ -225,7 +225,7 @@ nouvelle image derrière un tag mobile).
 | `grav_extra_environment` | `{}` | Variables d'environnement additionnelles — clés validées (`^GRAV_[A-Z0-9_]+$`), ne peuvent pas écraser une variable déjà gérée par le rôle |
 | `grav_healthcheck_interval` / `_timeout` / `_start_period` / `_retries` | `30s` / `3s` / `10s` / `3` | Miroir du `HEALTHCHECK` de l'image, ajustable sans reconstruire |
 | `grav_deploy_wait_retries` / `_delay` | `30` / `2` | Attente côté Ansible du statut `healthy` |
-| `grav_site_check_host` | `127.0.0.1` | Adresse de la vérification HTTP — **distincte** de `grav_bind_address` (qui peut valoir `0.0.0.0`, non joignable comme destination) |
+| `grav_site_check_host` | `""` | Adresse de la vérification HTTP. Vide = **dérivée** de `grav_bind_address` (`0.0.0.0` → `127.0.0.1`, sinon la même). Override possible, sans `:` — voir « Contrat réseau » |
 | `grav_site_check_path` / `_status` | `/` / `200` | Page réelle vérifiée et code attendu |
 | `grav_site_check_retries` / `_delay` / `_timeout` | `10` / `5` / `5` | Attente de la vérification HTTP |
 | `grav_container_gid` | `82` | GID de `www-data` dans l'image (Alpine) — doit correspondre à l'image utilisée |
@@ -307,9 +307,23 @@ ne pourrait pas joindre l'instance — utilisez l'adresse LAN explicite.
 Le rôle ne configure pas le firewall : un accès direct à l'endpoint HTTP du
 LAN contourne la terminaison TLS d'un éventuel reverse proxy.
 
-`grav_site_check_host` (adresse du contrôle HTTP) reste, dans ce lot, une
-variable indépendante à valeur par défaut `127.0.0.1` — sa dérivation
-automatique depuis `grav_bind_address` arrive au Lot 5.
+### Adresse du contrôle HTTP applicatif
+
+Le rôle vérifie, après le healthcheck Docker, qu'une page réelle du site répond.
+Cette vérification s'exécute **sur l'hôte cible** et cible `grav_site_check_host`.
+
+`grav_site_check_host` est **vide par défaut** : l'adresse est alors **dérivée de
+`grav_bind_address`** —
+
+| `grav_bind_address` | `grav_site_check_host` effectif |
+|---|---|
+| `127.0.0.1` | `127.0.0.1` |
+| `192.168.1.10` (IP LAN) | `192.168.1.10` |
+| `0.0.0.0` | `127.0.0.1` (une adresse d'écoute n'est pas une destination) |
+
+Renseigner `grav_site_check_host` force une adresse explicite (échappatoire) ; elle
+ne doit alors **pas contenir `:`** — ni IPv6 (hors périmètre `2.0.0`), ni numéro de
+port (le port vient de `grav_http_port`).
 
 ---
 

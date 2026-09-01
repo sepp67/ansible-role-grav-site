@@ -12,3 +12,18 @@
 # Utilisée à la fois par templates/docker-compose.yml.j2 et
 # tasks/version.yml : une seule source de vérité.
 _grav_effective_reference: "{{ (grav_image ~ '@' ~ grav_digest) if (grav_digest | length > 0) else (grav_image ~ ':' ~ grav_version) }}"
+
+# Adresse réellement contactée par le contrôle HTTP applicatif
+# (tasks/healthcheck.yml, exécuté SUR l'hôte cible). Dérivée de
+# grav_bind_address (contrat v1.0.1 §7.3, constraint Lot 5) :
+#   - grav_site_check_host explicite (non vide) : respecté tel quel
+#     (échappatoire, toujours possible) ;
+#   - grav_bind_address == "0.0.0.0" : "127.0.0.1" — "0.0.0.0" est une
+#     adresse d'écoute, jamais une destination joignable ;
+#   - sinon : grav_bind_address — l'adresse d'écoute précise est aussi
+#     joignable en local depuis l'hôte cible.
+# L'IPv6 étant refusée en amont (tasks/assert.yml), aucune gestion de
+# crochets "[...]" n'est nécessaire ici.
+_grav_site_check_host: >-
+  {{ grav_site_check_host if (grav_site_check_host | length > 0)
+  else ('127.0.0.1' if grav_bind_address == '0.0.0.0' else grav_bind_address) }}

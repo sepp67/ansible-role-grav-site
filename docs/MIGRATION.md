@@ -24,6 +24,7 @@ roles:
 | §7 | `grav_image` : tag ou digest incorporé **refusé** | 3 (appliqué) | Déplacer le tag vers `grav_version` |
 | §9 | `grav_extra_environment` : **clés validées** (`^GRAV_[A-Z0-9_]+$`, pas de clé réservée) | 3 (appliqué) | Renommer/retirer les clés non conformes |
 | §3 | Politique de pull : `always` → `missing` | 4 (appliqué) | `grav_force_pull: true` pour retrouver l'ancien comportement |
+| §2 | `grav_site_check_host` : défaut `127.0.0.1` → **dérivé** de `grav_bind_address` | 5 (appliqué) | Retirer une surcharge redondante ; sinon aucune action |
 
 Les dépréciations (§5, sans échec) et les ajouts (§4 `grav_digest`, §8 `grav_admin_type`)
 ne sont pas des ruptures.
@@ -143,6 +144,24 @@ IPv6 ») est **supprimé**. Une validation IPv6 fiable exigerait `ansible.utils`
 **Si vous aviez besoin d'IPv6** : liez l'instance à une adresse IPv4 et laissez le
 reverse proxy en amont terminer l'IPv6. Le rôle ne gère de toute façon ni TLS ni
 reverse proxy.
+
+### Lot 5 : `grav_site_check_host` dérivé de `grav_bind_address`
+
+`grav_site_check_host` passe d'un défaut `127.0.0.1` à **vide** : l'adresse du
+contrôle HTTP applicatif est désormais **dérivée** de `grav_bind_address` —
+
+| `grav_bind_address` | `grav_site_check_host` effectif |
+|---|---|
+| adresse précise (`127.0.0.1`, IP LAN…) | la même adresse |
+| `0.0.0.0` | `127.0.0.1` |
+
+Un override explicite reste possible (`grav_site_check_host: "…"`) mais ne doit pas
+contenir `:` (ni IPv6, ni port).
+
+**Action** : si vous surchargiez `grav_site_check_host` avec la **même** valeur que
+`grav_bind_address` (ou `127.0.0.1` en face d'un bind `0.0.0.0`), retirez la
+surcharge — la dérivation produit le même résultat. Conservez-la uniquement si le
+contrôle doit viser une adresse différente de l'adresse d'écoute.
 
 **Action** : ajoutez `grav_bind_address` (adresse IPv4 littérale ou `0.0.0.0`) à votre
 profil avant de passer en `2.0.0`.

@@ -101,12 +101,14 @@ grav_deploy_wait_delay: 2
 # Grav lui-même. Le rôle vérifie donc, en plus, qu'une page réelle du site
 # répond correctement.
 #
-# grav_site_check_host est volontairement distinct de grav_bind_address :
-# ce dernier peut légitimement valoir "0.0.0.0" (écoute sur toutes les
-# interfaces), une adresse non joignable en tant que destination — la
-# vérification HTTP doit toujours cibler une adresse réellement connectable
-# (le check s'exécute sur l'hôte cible lui-même, d'où 127.0.0.1 par défaut).
-grav_site_check_host: "127.0.0.1"
+# grav_site_check_host : vide par défaut => l'adresse du contrôle HTTP est
+# DÉRIVÉE de grav_bind_address (voir vars/main.yml _grav_site_check_host) :
+# adresse d'écoute précise -> même adresse ; "0.0.0.0" -> "127.0.0.1"
+# (une adresse d'écoute n'est pas une destination joignable). Renseigner
+# cette variable force une adresse explicite (échappatoire) ; elle ne doit
+# alors pas contenir ":" (ni IPv6, ni port — le port vient de
+# grav_http_port). Le contrôle s'exécute sur l'hôte cible lui-même.
+grav_site_check_host: ""
 grav_site_check_path: "/"
 grav_site_check_status: 200
 grav_site_check_retries: 10

@@ -99,6 +99,11 @@ découpée en `Ajouté` / `Modifié` / `Déprécié` / `Supprimé` / `Corrigé` 
   `2.0.0` (dont `::`) — une validation IPv6 fiable exigerait `ansible.utils` +
   `netaddr`. Le pré-contrôle permissif du Lot 3 (« toute chaîne contenant `:` ») est
   supprimé.
+- **Modifié** — `grav_site_check_host` : défaut `127.0.0.1` → `""`. L'adresse du
+  contrôle HTTP applicatif est désormais **dérivée** de `grav_bind_address` (adresse
+  précise → la même ; `0.0.0.0` → `127.0.0.1`), calcul porté par `vars/main.yml`
+  (`_grav_site_check_host`). Un override explicite reste possible mais ne peut plus
+  contenir `:` (ni IPv6, ni port).
 
 ### À venir (Lots 6–9, changements d'interface — `2.0.0`)
 

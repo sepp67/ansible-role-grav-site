@@ -139,15 +139,23 @@
       des entiers strictement positifs.
     quiet: true
 
-- name: "Valider grav_site_check_host et grav_site_check_path"
+# grav_site_check_host : vide par défaut (dérivé de grav_bind_address, voir
+# vars/main.yml). Un override explicite reste possible mais ne doit pas
+# contenir ":" — ni IPv6 (non pris en charge en v2.0.0, cf. plus haut), ni
+# numéro de port (le port vient de grav_http_port). L'adresse effectivement
+# contrôlée (_grav_site_check_host) doit toujours être non vide.
+- name: "Valider grav_site_check_host (override) et grav_site_check_path"
   ansible.builtin.assert:
     that:
-      - grav_site_check_host | length > 0
+      - "':' not in grav_site_check_host"
+      - _grav_site_check_host | length > 0
       - grav_site_check_path is match('/')
     fail_msg: >-
-      grav_site_check_host doit être non vide (actuellement
-      "{{ grav_site_check_host }}") et grav_site_check_path doit commencer
-      par "/" (actuellement "{{ grav_site_check_path }}").
+      grav_site_check_host="{{ grav_site_check_host }}" invalide : laissez-la
+      vide (dérivation automatique depuis grav_bind_address) ou fournissez un
+      hôte/IPv4 sans ":" (l'IPv6 n'est pas prise en charge en v2.0.0, le port
+      vient de grav_http_port). grav_site_check_path doit commencer par "/"
+      (actuellement "{{ grav_site_check_path }}").
     quiet: true
 
 # Dépréciation (contrat v1.0.1 §6.3, décision Q2 du préflight) : la
