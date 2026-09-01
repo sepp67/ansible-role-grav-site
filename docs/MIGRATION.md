@@ -147,14 +147,19 @@ Jamais `image:version@digest`.
 
 ---
 
-## 5. Chemins dérivés : dépréciation (Lot 3)
+## 5. Chemins dérivés : dépréciation (Lot 3 — appliqué)
 
 `grav_pages_directory`, `grav_accounts_directory`, `grav_data_directory`,
-`grav_images_directory`, `grav_secret_directory` restent acceptés en `2.0.0` mais leur
-surcharge explicite émettra un avertissement. Ils sont calculés depuis
-`grav_base_directory`. Retrait éventuel en `3.0.0`.
+`grav_images_directory`, `grav_secret_directory` restent acceptés et **honorés tels
+quels** en `2.0.0`. Une surcharge dont la valeur diffère du chemin normalement dérivé
+de `grav_base_directory` émet désormais un avertissement `[DEPRECATED]` — le chemin
+dérivé normal, lui, n'émet rien. Retrait éventuel en `3.0.0`, précédé d'une évaluation
+d'un besoin légitime de répartition multi-disques (contrat v1.0.1 §6.3).
 
-**Action** : ne les surchargez plus ; définissez uniquement `grav_base_directory`.
+**Action** : ne les surchargez plus ; définissez uniquement `grav_base_directory`. Si
+vous avez un besoin réel de répartir un répertoire sur un disque distinct, gardez la
+surcharge (elle reste fonctionnelle) et signalez ce besoin — une interface générique
+pourra être ajoutée avant tout retrait en `3.0.0`.
 
 ---
 

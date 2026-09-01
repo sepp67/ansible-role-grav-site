@@ -212,8 +212,11 @@ exécution (`tasks/assert.yml`).
 ### Valeurs dérivées de `grav_base_directory`
 
 `grav_pages_directory`, `grav_accounts_directory`, `grav_data_directory`,
-`grav_images_directory`, `grav_secret_directory`. Calculées par le rôle.
-Leur surcharge directe est **dépréciée** (retrait éventuel en `v3`) — voir
+`grav_images_directory`, `grav_secret_directory`. Calculées par le rôle à
+partir de `grav_base_directory`. Leur surcharge directe reste **acceptée et
+honorée**, mais est **dépréciée** : le rôle émet un avertissement
+`[DEPRECATED]` si la valeur fournie diffère du chemin normalement dérivé
+(aucun avertissement dans le cas normal). Retrait éventuel en `v3.0.0` — voir
 [`docs/MIGRATION.md`](docs/MIGRATION.md).
 
 ### Variables d'environnement transmises au conteneur

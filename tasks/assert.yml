@@ -111,6 +111,34 @@
       par "/" (actuellement "{{ grav_site_check_path }}").
     quiet: true
 
+# Dépréciation (contrat v1.0.1 §6.3, décision Q2 du préflight) : la
+# surcharge directe des 5 chemins persistants reste ACCEPTÉE et HONORÉE en
+# v2.0.0 — jamais silencieusement ignorée. Un avertissement n'est émis QUE
+# si la valeur diffère du chemin normalement dérivé de grav_base_directory ;
+# le chemin dérivé normal ne produit aucun avertissement. Retrait éventuel
+# en v3.0.0 — voir docs/MIGRATION.md §5.
+- name: "Comparer les chemins persistants fournis aux chemins normalement dérivés"
+  ansible.builtin.set_fact:
+    _grav_directory_checks:
+      - {name: grav_pages_directory, actual: "{{ grav_pages_directory }}", expected: "{{ grav_base_directory }}/data/pages"}
+      - {name: grav_accounts_directory, actual: "{{ grav_accounts_directory }}", expected: "{{ grav_base_directory }}/data/accounts"}
+      - {name: grav_data_directory, actual: "{{ grav_data_directory }}", expected: "{{ grav_base_directory }}/data/data"}
+      - {name: grav_images_directory, actual: "{{ grav_images_directory }}", expected: "{{ grav_base_directory }}/data/images"}
+      - {name: grav_secret_directory, actual: "{{ grav_secret_directory }}", expected: "{{ grav_base_directory }}/secrets"}
+
+- name: "Avertir si un chemin persistant est surchargé explicitement (déprécié)"
+  ansible.builtin.debug:
+    msg: >-
+      [DEPRECATED] {{ item.name }}="{{ item.actual }}" diffère du chemin
+      normalement dérivé de grav_base_directory ("{{ item.expected }}"). La
+      surcharge directe de ce chemin est dépréciée et sera retirée en
+      v3.0.0 — voir docs/MIGRATION.md §5. Cette valeur reste honorée telle
+      quelle dans cette version.
+  loop: "{{ _grav_directory_checks }}"
+  when: item.actual != item.expected
+  loop_control:
+    label: "{{ item.name }}"
+
 - name: "Calculer le nombre de variables admin renseignées"
   ansible.builtin.set_fact:
     _grav_admin_vars_set: >-

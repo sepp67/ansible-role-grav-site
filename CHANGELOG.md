@@ -41,6 +41,10 @@ découpée en `Ajouté` / `Modifié` / `Déprécié` / `Supprimé` / `Corrigé` 
 - **Modifié** — `grav_bind_address` est désormais **obligatoire** (plus de défaut
   `127.0.0.1`) ; validée en forme avant toute mutation. Voir README.md « Contrat
   réseau ». Tous les appelants internes au dépôt la fournissaient déjà depuis le Lot 1.
+- **Déprécié** — la surcharge directe de `grav_pages_directory`, `grav_accounts_directory`,
+  `grav_data_directory`, `grav_images_directory`, `grav_secret_directory` : toujours
+  acceptée et honorée, mais émet un avertissement `[DEPRECATED]` si la valeur diffère
+  du chemin normalement dérivé de `grav_base_directory`. Retrait éventuel en `3.0.0`.
 
 ### À venir (Lots 4–9, changements d'interface — `2.0.0`)
 
