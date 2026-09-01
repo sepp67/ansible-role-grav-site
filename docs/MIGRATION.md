@@ -55,7 +55,7 @@ Votre profil et votre secret vivent maintenant **dans votre propre dépôt**
    votre-depot-ops/
    ├── requirements.yml                    # grav_site @ git tag vX.Y.Z
    ├── inventories/grav-vms/
-   │   ├── hosts.yml                       # gites-prod  ansible_host: 192.168.1.xx (IP LAN réelle)
+   │   ├── hosts.yml                       # gites-prod  ansible_host: 192.168.1.10 (IP LAN réelle)
    │   ├── host_vars/gites-prod.yml        # <- contenu ci-dessus, sans les secrets
    │   └── host_vars/gites-prod.vault.yml  # <- vos secrets (voir 2)
    └── playbooks/site.yml
@@ -105,7 +105,7 @@ En `2.0.0` : **aucun défaut**. Vous devrez fournir explicitement l'adresse d'é
 | Contexte | Valeur |
 |---|---|
 | Développement / usage strictement local | `127.0.0.1` |
-| VM du réseau local (cas normal) | l'IP LAN de la VM, ex. `192.168.1.98` |
+| VM du réseau local (cas normal) | l'IP LAN de la VM, ex. `192.168.1.10` |
 | Toutes les interfaces (choix assumé) | `0.0.0.0` |
 
 `127.0.0.1` **ne convient pas** si un reverse proxy (Caddy) tourne sur une autre VM :

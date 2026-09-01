@@ -1,0 +1,35 @@
+---
+# Profil d'EXEMPLE — variables NON sensibles uniquement.
+# Les secrets vont dans vault.yml (chiffré) — voir vault.yml.example et
+# README.md, « Stratégie des secrets ».
+#
+# Copiez ce dossier vers inventories/mon-site/ avant d'éditer.
+
+# --- Identité de l'application (obligatoire) ---
+# Deux valeurs à renseigner pour déployer une application dérivée de grav-runtime.
+grav_image: "ghcr.io/CHANGEME/mon-site"
+grav_version: ""          # tag réellement publié, ex. "1.0.0" — jamais "latest" ni vide
+
+# --- Instance ---
+grav_container_name: "mon-site"
+grav_base_directory: "/opt/mon-site"
+
+# --- Réseau ---
+# 127.0.0.1 : usage strictement local. Pour une VM du LAN, mettez l'IP LAN
+# explicite de la VM (ex. 192.168.1.98). Voir docs/MIGRATION.md §2.
+grav_bind_address: "127.0.0.1"
+grav_http_port: 8080
+
+# --- Bootstrap administrateur ---
+# Décommentez et pointez vers vos variables Vault (préfixe vault_) une fois
+# vault.yml créé et chiffré. Les trois ensemble ou aucune.
+# grav_admin_user:     "{{ vault_grav_admin_user }}"
+# grav_admin_password: "{{ vault_grav_admin_password }}"
+# grav_admin_email:    "{{ vault_grav_admin_email }}"
+# grav_admin_fullname: "{{ vault_grav_admin_fullname }}"
+# grav_admin_language: "{{ vault_grav_admin_language }}"
+
+# --- Fichier secret applicatif optionnel (ex. email-private.php) ---
+# grav_secrets:
+#   - name: email-private.php
+#     content: "{{ vault_grav_email_private_php }}"

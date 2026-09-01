@@ -1,0 +1,25 @@
+---
+# Exemple NON opérationnel : playbook d'un dépôt d'orchestration qui consomme
+# ce rôle installé via examples/requirements.yml (nom installé : grav_site).
+#
+#   ansible-galaxy install -r examples/requirements.yml
+#   ansible-playbook -i <votre-inventaire> examples/site.yml --ask-vault-pass
+#
+# L'inventaire, les valeurs propres au site et à la VM, et les secrets
+# appartiennent au dépôt appelant — jamais à ce dépôt.
+
+- name: "Déployer une instance Grav"
+  hosts: grav_servers
+  become: true
+  roles:
+    - role: grav_site
+      vars:
+        grav_image: "ghcr.io/sepp67/projet-gites"
+        grav_version: "1.0.7"
+        grav_container_name: "projet-gites"
+        grav_base_directory: "/opt/projet-gites"
+        grav_bind_address: "192.168.1.10"   # exemple — l'IP LAN réelle de votre VM
+        grav_http_port: 8080
+        grav_admin_user: "{{ vault_grav_admin_user }}"
+        grav_admin_password: "{{ vault_grav_admin_password }}"
+        grav_admin_email: "{{ vault_grav_admin_email }}"

@@ -1,0 +1,26 @@
+---
+# Modèle de fichier Vault — copier PUIS chiffrer immédiatement :
+#
+#   cp vault.yml.example vault.yml
+#   ansible-vault encrypt vault.yml
+#
+# Convention : toute variable sensible est nommée ici avec le préfixe vault_ ;
+# main.yml (non chiffré) l'affecte explicitement à la variable attendue par le
+# rôle — jamais l'inverse. Aucune valeur sensible ne doit apparaître dans un
+# fichier non chiffré.
+#
+# vault.yml (une fois créé) est ignoré par git — voir .gitignore. Seul ce
+# fichier .example, sans aucune valeur réelle, est versionné.
+
+vault_grav_admin_user: ""
+vault_grav_admin_password: ""
+vault_grav_admin_email: ""
+vault_grav_admin_fullname: ""
+vault_grav_admin_title: ""
+vault_grav_admin_language: ""
+
+# Secret applicatif optionnel — voir grav_secrets dans main.yml. Décommenter et
+# adapter si l'image déployée en a besoin ; jamais de contenu réel ici :
+# vault_grav_email_private_php: |
+#   <?php
+#   // contenu réel du secret, uniquement dans vault.yml chiffré

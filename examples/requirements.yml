@@ -1,0 +1,11 @@
+---
+# Exemple : consommer ce rôle depuis un dépôt d'orchestration (ex. grav-sites-ops),
+# épinglé sur un tag Git publié. Voir examples/README.md.
+roles:
+  - name: grav_site
+    src: git+https://github.com/sepp67/ansible-role-grav-site.git
+    version: "v1.0.1"   # remplacez par la version cible (ex. "v2.0.0")
+
+collections:
+  - name: community.docker
+    version: ">=5.0.0,<6.0.0"
