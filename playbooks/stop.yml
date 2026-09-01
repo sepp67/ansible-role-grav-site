@@ -8,8 +8,23 @@
 # Le rôle est référencé par chemin relatif (voir README.md "Résolution du
 # rôle") ; `# noqa: role-name[path]` : choix délibéré, pas un oubli.
 #
-# Usage (depuis la racine du dépôt) :
-#   ansible-playbook playbooks/stop.yml
+# Usage (depuis la racine du dépôt) — un inventaire explicite est requis :
+#   ansible-playbook -i <votre-inventaire> playbooks/stop.yml
+
+- name: "Préflight autonome — un inventaire ciblant grav_servers doit être fourni explicitement"
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: "Refuser de continuer si aucun hôte 'grav_servers' n'est défini"
+      ansible.builtin.assert:
+        that:
+          - groups.get('grav_servers', []) | length > 0
+        fail_msg: >-
+          Ce dépôt ne cible aucune VM par défaut. Fournissez explicitement
+          votre inventaire :
+          ansible-playbook -i <votre-inventaire> playbooks/stop.yml
+          (voir README.md, « Utilisation autonome »).
+        quiet: true
 
 - name: "Arrêter un site Grav déployé (données persistantes conservées)"
   hosts: grav_servers
