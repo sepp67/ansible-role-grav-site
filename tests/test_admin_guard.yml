@@ -1,0 +1,124 @@
+---
+# T09 / T10 / T11 (partie hors ligne) — contrat v1.0.1 §9.3.1.
+#
+# Rejoue assert.yml + admin_guard.yml (aucun Docker, aucune VM, aucune
+# mutation d'un volume réel) sur la matrice normative de protection
+# administrateur, et vérifie que chaque scénario échoue — ou passe —
+# exactement comme la matrice l'exige.
+#
+# Ne couvre PAS (reste TEST GAP, Docker, Lot 7/8) : la création réelle du
+# fichier <user>.yaml par bin/plugin login new-user, la restitution du mot
+# de passe à l'identique, le « compte non recréé » sur un runtime réel.
+#
+# Usage (depuis la racine du dépôt) :
+#   cd tests && ansible-playbook -i inventory test_admin_guard.yml
+
+- name: "T09/T10/T11 — matrice de protection administrateur (aucun Docker)"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    _grav_ag_dir: "/tmp/grav-adminguard-test"
+
+    # accounts   : absent | empty | gitkeep | yaml | yml
+    # admin_*    : omis = "" (donc 0 variable) ; sinon compté
+    # state      : started (défaut) | stopped | restarted
+    _grav_ag_scenarios:
+      # --- Aucun fichier de compte + aucune variable -> échec bloquant ---
+      - label: "répertoire absent + 0 variable -> échec"
+        accounts: absent
+        expect_fail: true
+      - label: "répertoire vide + 0 variable -> échec"
+        accounts: empty
+        expect_fail: true
+      - label: "répertoire avec .gitkeep seul + 0 variable -> échec"
+        accounts: gitkeep
+        expect_fail: true
+
+      # --- Fichier de compte présent -> variables facultatives ---
+      - label: "fichier de compte .yaml + 0 variable -> autorisé"
+        accounts: yaml
+        expect_fail: false
+      - label: "fichier de compte .yml + 0 variable -> autorisé"
+        accounts: yml
+        expect_fail: false
+
+      # --- Aucun compte + les trois variables -> bootstrap autorisé ---
+      - label: "répertoire absent + 3 variables -> autorisé"
+        accounts: absent
+        admin_user: "zzadmin"
+        admin_password: "pw-marker-abc"
+        admin_email: "zzadmin@example.test"
+        expect_fail: false
+      - label: "répertoire vide + 3 variables -> autorisé"
+        accounts: empty
+        admin_user: "zzadmin"
+        admin_password: "pw-marker-abc"
+        admin_email: "zzadmin@example.test"
+        expect_fail: false
+
+      # --- Compte présent + 3 variables -> autorisé (non recréé côté runtime) ---
+      - label: "fichier de compte .yaml + 3 variables -> autorisé"
+        accounts: yaml
+        admin_user: "zzadmin"
+        admin_password: "pw-marker-abc"
+        admin_email: "zzadmin@example.test"
+        expect_fail: false
+
+      # --- Variables partielles -> toujours échec (tri-state assert.yml) ---
+      - label: "répertoire absent + 1 variable (partiel) -> échec"
+        accounts: absent
+        admin_user: "zzadmin"
+        expect_fail: true
+      - label: "compte présent + 2 variables (partiel) -> échec"
+        accounts: yaml
+        admin_user: "zzadmin"
+        admin_password: "pw-marker-abc"
+        expect_fail: true
+
+      # --- grav_state: stopped -> garde §9.3.1 désactivée ---
+      - label: "stopped + répertoire absent + 0 variable -> autorisé (garde désactivée)"
+        accounts: absent
+        state: stopped
+        expect_fail: false
+      - label: "stopped + .gitkeep seul + 0 variable -> autorisé (garde désactivée)"
+        accounts: gitkeep
+        state: stopped
+        expect_fail: false
+      - label: "stopped + 1 variable (partiel) -> échec (tri-state s'applique quand même)"
+        accounts: absent
+        state: stopped
+        admin_user: "zzadmin"
+        expect_fail: true
+
+      # --- grav_state: restarted -> garde active ---
+      - label: "restarted + fichier de compte .yaml + 0 variable -> autorisé"
+        accounts: yaml
+        state: restarted
+        expect_fail: false
+      - label: "restarted + répertoire vide + 0 variable -> échec"
+        accounts: empty
+        state: restarted
+        expect_fail: true
+
+  tasks:
+    - name: "Jouer chaque scénario de la matrice §9.3.1"
+      ansible.builtin.include_tasks: _admin_guard_case.yml
+      loop: "{{ _grav_ag_scenarios }}"
+      loop_control:
+        loop_var: agcase
+        label: "{{ agcase.label }}"
+
+    - name: "Nettoyer"
+      ansible.builtin.file:
+        path: "{{ _grav_ag_dir }}"
+        state: absent
+
+    - name: "Matrice §9.3.1 vérifiée"
+      ansible.builtin.debug:
+        msg: >-
+          {{ _grav_ag_scenarios | length }} scénarios de la matrice de
+          protection administrateur vérifiés : répertoire absent / vide /
+          .gitkeep / *.yaml / *.yml × 0/partiel/3 variables × started /
+          stopped / restarted.

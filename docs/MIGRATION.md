@@ -220,16 +220,34 @@ pourra être ajoutée avant tout retrait en `3.0.0`.
 
 ---
 
-## 6. Garde contre une instance non initialisée (Lot 6)
+## 6. Garde contre une instance non initialisée (Lot 6 — appliqué : garde avant mutation)
 
-`grav-runtime` ne fournit aucun identifiant administrateur par défaut. En `2.0.0`, si le
-volume `accounts` est vide ou absent **et** que `grav_admin_user` / `_password` /
-`_email` ne sont pas tous fournis, le déploiement **échouera avant toute mutation**
-(au lieu de laisser Grav démarrer avec la création du premier compte ouverte sur
-`/admin`). Après démarrage, le rôle vérifiera qu'un compte existe effectivement.
+`grav-runtime` ne fournit **aucun** compte ni identifiant administrateur. Sans garde,
+une instance dont le volume `accounts` est vide démarre **non initialisée** : la
+création interactive du premier compte est accessible depuis `/admin`.
 
-**Action** : gardez vos identifiants admin dans votre Vault, y compris après le
-premier déploiement.
+### Garde avant toute mutation (`tasks/admin_guard.yml`) — appliquée
+
+Le rôle constate la **présence d'un fichier de compte persistant** — au moins un
+`*.yaml` ou `*.yml` dans `grav_accounts_directory` (le bind mount de `user/accounts`
+sur l'hôte). Il ne lit **jamais** le contenu de ces fichiers et ne juge ni leur
+syntaxe ni leur validité fonctionnelle : « un fichier de compte est présent », ou non.
+
+| Fichier de compte persistant | `grav_admin_*` | `grav_state` | Résultat |
+|---|---|---|---|
+| présent | absentes | `started` / `restarted` | autorisé |
+| présent | les trois | `started` / `restarted` | autorisé, compte non recréé |
+| absent | les trois | `started` / `restarted` | bootstrap autorisé |
+| absent | **aucune** | `started` / `restarted` | **échec, avant mutation** |
+| absent ou présent | **partielles** | tout état | **échec** (règle « les trois ou aucune ») |
+| absent | aucune | `stopped` | autorisé (aucun bootstrap imposé) |
+
+L'échec intervient **avant** l'installation de Docker, la création des répertoires et
+le rendu de `grav.env` (`tasks/main.yml` : `admin_guard` juste après `assert`).
+
+**Action** : gardez `grav_admin_user` / `grav_admin_password` / `grav_admin_email`
+dans votre Vault, **y compris après le premier déploiement** — ils redeviennent
+obligatoires si le volume `accounts` est perdu ou recréé vide.
 
 ---
 

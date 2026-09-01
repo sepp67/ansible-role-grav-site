@@ -58,6 +58,10 @@ jobs:
         run: |
           cd tests
           ansible-playbook -i inventory test_failure_log_lifecycle.yml
+      - name: "T09/T10/T11 — matrice de protection administrateur (aucun Docker)"
+        run: |
+          cd tests
+          ansible-playbook -i inventory test_admin_guard.yml
       - name: "grav_version de l'exemple jamais 'latest'"
         run: |
           ! grep -E '^\s*grav_version:\s*"?latest"?\s*$' \

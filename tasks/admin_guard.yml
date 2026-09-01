@@ -1,0 +1,70 @@
+---
+# INV-08bis / contrat v1.0.1 §9.3.1 — garde administrateur AVANT toute mutation.
+#
+# grav-runtime ne fournit AUCUN compte ni identifiant administrateur. Sans
+# cette garde, une instance dont le volume "accounts" est vide démarrerait
+# NON INITIALISÉE : la création interactive du premier compte serait
+# accessible à quiconque atteint /admin.
+#
+# Cette tâche CONSTATE uniquement la présence d'un *fichier de compte
+# persistant* (*.yaml / *.yml dans grav_accounts_directory). Elle ne lit
+# jamais le contenu d'un tel fichier et ne se prononce ni sur sa validité
+# syntaxique, ni sur sa validité fonctionnelle — seulement : « un fichier de
+# compte persistant est présent », ou non.
+#
+# S'exécute APRÈS assert.yml (règle tri-state « les trois ou aucune ») et
+# AVANT docker.yml, directories.yml et deploy.yml (rendu de grav.env).
+
+- name: "Vérifier l'existence du répertoire des comptes persistants"
+  ansible.builtin.stat:
+    path: "{{ grav_accounts_directory }}"
+  register: _grav_accounts_dir
+  no_log: true
+
+# find n'est lancé QUE si le répertoire existe (contrainte Lot 6 §1) :
+# sur un premier déploiement il n'a pas encore été créé (directories.yml).
+- name: "Rechercher un fichier de compte persistant (métadonnées seules)"
+  ansible.builtin.find:
+    paths: "{{ grav_accounts_directory }}"
+    patterns:
+      - "*.yaml"
+      - "*.yml"
+    file_type: file
+    recurse: false
+  register: _grav_accounts_found
+  when:
+    - _grav_accounts_dir.stat.exists | default(false)
+    - _grav_accounts_dir.stat.isdir | default(false)
+  no_log: true
+
+# Répertoire absent -> find non joué -> _grav_accounts_found.matched
+# indéfini -> default(0) -> booléen false. Répertoire présent -> booléen
+# calculé sur le nombre de fichiers *.yaml/*.yml.
+- name: "Statuer sur la présence d'un fichier de compte persistant"
+  ansible.builtin.set_fact:
+    _grav_admin_account_present: "{{ ((_grav_accounts_found.matched | default(0)) | int) > 0 }}"
+
+- name: "Compter les variables de bootstrap administrateur renseignées"
+  ansible.builtin.set_fact:
+    _grav_admin_bootstrap_count: >-
+      {{ [grav_admin_user, grav_admin_password, grav_admin_email]
+         | reject('equalto', '') | list | length }}
+  no_log: true
+
+# Matrice §9.3.1 : lorsqu'aucun fichier de compte persistant n'est constaté,
+# les trois variables de bootstrap deviennent OBLIGATOIRES (ensemble). Une
+# configuration partielle est déjà rejetée en amont par la règle tri-state
+# d'assert.yml — y compris pour grav_state: stopped.
+- name: "Garde administrateur §9.3.1 — fichier de compte persistant ou bootstrap complet"
+  ansible.builtin.assert:
+    that:
+      - _grav_admin_account_present or (_grav_admin_bootstrap_count | int == 3)
+    fail_msg: >-
+      Aucun fichier de compte persistant n'est présent dans le volume
+      "accounts" ({{ grav_accounts_directory }}) et les identifiants de
+      bootstrap ne sont pas tous fournis. Grav démarrerait NON INITIALISÉ
+      (création du premier compte accessible depuis /admin). Fournissez
+      grav_admin_user, grav_admin_password ET grav_admin_email — les trois
+      ensemble, typiquement depuis un vault — puis relancez le déploiement.
+    quiet: true
+  when: grav_state != 'stopped'

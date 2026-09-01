@@ -60,9 +60,14 @@ grav_secrets: []
 # puisse les lire, sans recourir à un bit "other".
 grav_container_gid: 82
 
-# Bootstrap administrateur — transmis tel quel au runtime. Politique du
-# runtime : les 3 premières variables doivent être toutes définies ou
-# toutes absentes (voir tasks/assert.yml).
+# Bootstrap administrateur — transmis tel quel au runtime. Deux règles :
+#   - tri-state : grav_admin_user / _password / _email sont toutes les trois
+#     définies, ou toutes absentes (tasks/assert.yml) ;
+#   - elles deviennent OBLIGATOIRES si le rôle ne constate aucun fichier de
+#     compte persistant (*.yaml/*.yml) dans grav_accounts_directory
+#     (contrat v1.0.1 §9.3.1, tasks/admin_guard.yml). Sans compte prouvé et
+#     sans identifiants, Grav démarrerait non initialisé (création du
+#     premier compte ouverte sur /admin).
 grav_admin_user: ""
 grav_admin_password: ""
 grav_admin_email: ""

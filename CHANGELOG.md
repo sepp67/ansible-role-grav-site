@@ -121,10 +121,21 @@ découpée en `Ajouté` / `Modifié` / `Déprécié` / `Supprimé` / `Corrigé` 
   jamais le fichier, ne touche aucun répertoire persistant. Couvert par
   `tests/test_failure_log_lifecycle.yml` (sans Docker, intégré à la CI).
 
-### À venir (Lots 6–9, changements d'interface — `2.0.0`)
+### Bootstrap administrateur et persistance (Lot 6)
 
-- Garde contre une instance Grav laissée non initialisée (volume `accounts` vide sans
-  identifiants) — Lot 6.
+- **RUPTURE** — garde administrateur avant toute mutation (`tasks/admin_guard.yml`,
+  contrat v1.0.1 §9.3.1). Si le rôle ne constate **aucun fichier de compte persistant**
+  (`*.yaml` / `*.yml`) dans `grav_accounts_directory`, les trois variables
+  `grav_admin_user` / `_password` / `_email` deviennent **obligatoires** (ensemble).
+  Sinon échec **avant** l'installation de Docker, la création des répertoires et le
+  rendu de `grav.env`. Une instance dont le volume `accounts` est vide ne peut plus
+  démarrer non initialisée (création du premier compte ouverte sur `/admin`).
+  `grav_state: stopped` n'est pas concerné (aucun bootstrap imposé). Le rôle
+  constate la **présence d'un fichier** de compte — il ne lit ni ne valide son
+  contenu. Couvert par `tests/test_admin_guard.yml` (15 scénarios, sans Docker).
+
+### À venir (Lots 7–9)
+
 - Couverture Molecule de l'installation de Docker — Lot 7.
 
 ## [1.0.1] — 2026-07-25

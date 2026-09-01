@@ -39,6 +39,13 @@
     grav_base_directory: "/tmp/grav-site-test"
     grav_bind_address: "127.0.0.1"
     grav_http_port: 18080
+    # Identifiants fictifs — nécessaires depuis la garde administrateur
+    # (tasks/admin_guard.yml) : le volume "accounts" est vide au 1er
+    # déploiement, les trois variables deviennent obligatoires ; le runtime
+    # bootstrape alors le compte et la vérification post-démarrage passe.
+    grav_admin_user: "testadmin"
+    grav_admin_password: "test-password-not-a-real-secret"
+    grav_admin_email: "testadmin@example.test"
 
   tasks:
     - name: "Nettoyer un éventuel reliquat d'une exécution précédente"

@@ -2,6 +2,9 @@
 - name: "Valider les variables du rôle"
   ansible.builtin.import_tasks: assert.yml
 
+- name: "Garde administrateur avant toute mutation (contrat v1.0.1 §9.3.1)"
+  ansible.builtin.import_tasks: admin_guard.yml
+
 - name: "Installer Docker et le plugin Docker Compose"
   ansible.builtin.import_tasks: docker.yml
   when: grav_manage_docker | bool

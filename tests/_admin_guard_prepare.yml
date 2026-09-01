@@ -1,0 +1,51 @@
+---
+# Inclus par _admin_guard_case.yml. Prépare grav_accounts_directory dans
+# /tmp selon agcase.accounts :
+#   absent   -> le répertoire data/accounts n'existe pas
+#   empty    -> data/accounts existe, vide
+#   gitkeep  -> data/accounts contient uniquement .gitkeep (pas un compte)
+#   yaml     -> data/accounts contient zzadmin.yaml (fichier de compte)
+#   yml      -> data/accounts contient zzadmin.yml  (fichier de compte)
+#
+# zzadmin* : nom volontairement reconnaissable pour vérifier ensuite (grep
+# de la sortie -vv) qu'aucun nom de compte ni chemin ne fuit hors des
+# tâches no_log.
+
+- name: "Repartir d'un base_directory propre"
+  ansible.builtin.file:
+    path: "{{ _grav_ag_dir }}"
+    state: absent
+
+- name: "Recréer la racine de l'instance"
+  ansible.builtin.file:
+    path: "{{ _grav_ag_dir }}/data"
+    state: directory
+    mode: "0755"
+
+- name: "Créer data/accounts sauf pour le cas 'absent'"
+  ansible.builtin.file:
+    path: "{{ _grav_ag_dir }}/data/accounts"
+    state: directory
+    mode: "0755"
+  when: agcase.accounts != 'absent'
+
+- name: "Déposer uniquement un .gitkeep"
+  ansible.builtin.copy:
+    content: ""
+    dest: "{{ _grav_ag_dir }}/data/accounts/.gitkeep"
+    mode: "0644"
+  when: agcase.accounts == 'gitkeep'
+
+- name: "Déposer un fichier de compte .yaml"
+  ansible.builtin.copy:
+    content: "# faux compte de test — jamais lu par le rôle\n"
+    dest: "{{ _grav_ag_dir }}/data/accounts/zzadmin.yaml"
+    mode: "0600"
+  when: agcase.accounts == 'yaml'
+
+- name: "Déposer un fichier de compte .yml"
+  ansible.builtin.copy:
+    content: "# faux compte de test — jamais lu par le rôle\n"
+    dest: "{{ _grav_ag_dir }}/data/accounts/zzadmin.yml"
+    mode: "0600"
+  when: agcase.accounts == 'yml'

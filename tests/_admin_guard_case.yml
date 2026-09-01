@@ -1,0 +1,59 @@
+---
+# Inclus par tests/test_admin_guard.yml, une fois par scénario de la matrice
+# §9.3.1. Rejoue assert.yml PUIS admin_guard.yml (l'ordre réel de
+# tasks/main.yml) avec les variables du scénario, sur un répertoire /tmp
+# préparé, et compare l'échec effectivement observé à agcase.expect_fail.
+#
+# `vars:` d'un include_role doit être un mapping littéral : chaque valeur
+# est templatée individuellement, jamais de dict entièrement calculé.
+
+- name: "Scénario admin_guard : {{ agcase.label }}"
+  block:
+    - name: "Réinitialiser l'indicateur d'échec"
+      ansible.builtin.set_fact:
+        _grav_ag_failed: false
+
+    - name: "Préparer le répertoire de comptes du scénario"
+      ansible.builtin.include_tasks: _admin_guard_prepare.yml
+
+    - name: "Rejouer assert.yml"  # noqa: role-name[path]
+      ansible.builtin.include_role:
+        name: "{{ playbook_dir }}/.."
+        tasks_from: assert
+      vars:
+        grav_image: "ghcr.io/example/site"
+        grav_version: "1.0.0"
+        grav_bind_address: "127.0.0.1"
+        grav_base_directory: "{{ _grav_ag_dir }}"
+        grav_accounts_directory: "{{ _grav_ag_dir }}/data/accounts"
+        grav_state: "{{ agcase.state | default('started') }}"
+        grav_admin_user: "{{ agcase.admin_user | default('') }}"
+        grav_admin_password: "{{ agcase.admin_password | default('') }}"
+        grav_admin_email: "{{ agcase.admin_email | default('') }}"
+
+    - name: "Rejouer admin_guard.yml"  # noqa: role-name[path]
+      ansible.builtin.include_role:
+        name: "{{ playbook_dir }}/.."
+        tasks_from: admin_guard
+      vars:
+        grav_base_directory: "{{ _grav_ag_dir }}"
+        grav_accounts_directory: "{{ _grav_ag_dir }}/data/accounts"
+        grav_state: "{{ agcase.state | default('started') }}"
+        grav_admin_user: "{{ agcase.admin_user | default('') }}"
+        grav_admin_password: "{{ agcase.admin_password | default('') }}"
+        grav_admin_email: "{{ agcase.admin_email | default('') }}"
+
+  rescue:
+    - name: "Marquer l'échec observé"
+      ansible.builtin.set_fact:
+        _grav_ag_failed: true
+
+  always:
+    - name: "Vérifier le résultat du scénario"
+      ansible.builtin.assert:
+        that:
+          - _grav_ag_failed == agcase.expect_fail
+        fail_msg: >-
+          Scénario '{{ agcase.label }}' : échec attendu={{ agcase.expect_fail }},
+          observé={{ _grav_ag_failed }}.
+        quiet: true

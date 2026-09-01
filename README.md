@@ -36,19 +36,22 @@ de ce dépôt ni de `grav-sites-ops`.
 ## Ce que fait le rôle
 
 1. Valide toutes les variables structurantes **avant toute action** (`tasks/assert.yml`).
-2. Installe Docker Engine + le plugin Docker Compose si demandé (Debian/Ubuntu).
-3. Crée la racine de l'instance, les 4 répertoires persistants et le répertoire des secrets.
-4. Installe les fichiers secrets fournis par l'appelant (jamais générés).
-5. Génère un `docker-compose.yml` et un `grav.env` génériques.
-6. Récupère l'image demandée et applique l'état voulu au conteneur.
-7. Attend un **verdict de santé Docker** : tant que Docker répond `starting`, le rôle
+2. **Garde administrateur avant toute mutation** (`tasks/admin_guard.yml`) : si aucun
+   fichier de compte persistant n'est présent dans le volume `accounts`, les trois
+   variables `grav_admin_*` deviennent obligatoires — voir « Contrat administrateur ».
+3. Installe Docker Engine + le plugin Docker Compose si demandé (Debian/Ubuntu).
+4. Crée la racine de l'instance, les 4 répertoires persistants et le répertoire des secrets.
+5. Installe les fichiers secrets fournis par l'appelant (jamais générés).
+6. Génère un `docker-compose.yml` et un `grav.env` génériques.
+7. Récupère l'image demandée et applique l'état voulu au conteneur.
+8. Attend un **verdict de santé Docker** : tant que Docker répond `starting`, le rôle
    patiente (fenêtre `300 s` par défaut, **pas** une période de récupération) ;
    `healthy` = succès, `unhealthy` = échec immédiat. Vérifie ensuite qu'une page
    réelle du site répond. En cas d'échec, les derniers logs du conteneur sont écrits
    dans `{{ grav_base_directory }}/.last_failure.log` (`0600`, `root:root`, **jamais
    affichés dans la sortie Ansible**) et le message d'erreur renvoie vers ce fichier.
    Au retour au vert, ce fichier de diagnostic est supprimé.
-8. Enregistre l'état de déploiement (`.deployed_state.yml` structuré,
+9. Enregistre l'état de déploiement (`.deployed_state.yml` structuré,
    `.deployed_version`, `deployed_versions.log` append-only).
 
 Une mise à jour ou un rollback consistent à changer `grav_version` et à rejouer le rôle.
@@ -395,6 +398,30 @@ Ce rôle s'appuie sur le contrat de `grav-runtime` sans le remettre en cause :
   par sous-répertoire, uniquement si vides.
 - `HEALTHCHECK` Docker natif sur `GET /healthz` (technique, hors Grav).
 - Redémarrage propre sur `SIGTERM`.
+
+## Contrat administrateur
+
+`grav-runtime` ne fournit **aucun** compte ni identifiant administrateur. Une instance
+qui démarrerait sans compte laisserait la **création interactive du premier compte
+ouverte sur `/admin`**. Le rôle interdit cet état.
+
+**Garde avant toute mutation** (`tasks/admin_guard.yml`, avant l'installation de
+Docker, la création des répertoires et le rendu de `grav.env`). Le rôle constate la
+**présence d'un fichier de compte persistant** — au moins un `*.yaml` ou `*.yml` dans
+`grav_accounts_directory` (le bind mount de `user/accounts`). Il ne lit jamais le
+contenu de ces fichiers et ne juge ni leur syntaxe ni leur validité fonctionnelle.
+
+| Fichier de compte persistant | `grav_admin_user` / `_password` / `_email` | `grav_state` | Résultat |
+|---|---|---|---|
+| présent | absentes | `started` / `restarted` | déploiement autorisé |
+| présent | les trois | `started` / `restarted` | autorisé, compte **non recréé** par le runtime |
+| absent | les trois | `started` / `restarted` | bootstrap autorisé |
+| absent | **aucune** | `started` / `restarted` | **échec bloquant avant mutation** |
+| absent ou présent | **partielles (1–2 sur 3)** | tout état | **échec** (règle « les trois ou aucune ») |
+| absent | aucune | `stopped` | autorisé — `stopped` n'impose aucun bootstrap |
+
+Gardez vos identifiants administrateur dans votre Vault, **y compris après le premier
+déploiement** : ils redeviennent nécessaires si le volume `accounts` est perdu.
 
 ## Résolution du rôle
 
