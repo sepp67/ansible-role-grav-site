@@ -16,7 +16,10 @@
   community.docker.docker_compose_v2:
     project_src: "{{ grav_base_directory }}"
     state: "{{ 'present' if grav_state == 'started' else grav_state }}"
-    pull: "{{ 'always' if grav_state == 'started' else 'policy' }}"
+    # missing : ne tire que si l'image (tag ou digest) est absente
+    # localement — un redémarrage ne dépend pas du registre.
+    # always  : forcé explicitement par grav_force_pull (contrat v1.0.1 §5.6).
+    pull: "{{ 'always' if grav_force_pull | bool else 'missing' }}"
     recreate: auto
   register: grav_compose_result
   when: grav_state != 'stopped'

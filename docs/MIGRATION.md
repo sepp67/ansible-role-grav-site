@@ -23,7 +23,7 @@ roles:
 | §2 | `grav_bind_address` **obligatoire** (plus de défaut) | 3 (appliqué) | Ajouter `grav_bind_address` à votre profil |
 | §7 | `grav_image` : tag ou digest incorporé **refusé** | 3 (appliqué) | Déplacer le tag vers `grav_version` |
 | §9 | `grav_extra_environment` : **clés validées** (`^GRAV_[A-Z0-9_]+$`, pas de clé réservée) | 3 (appliqué) | Renommer/retirer les clés non conformes |
-| §3 | Politique de pull : `always` → `missing` | 4 | `grav_force_pull: true` pour retrouver l'ancien comportement |
+| §3 | Politique de pull : `always` → `missing` | 4 (appliqué) | `grav_force_pull: true` pour retrouver l'ancien comportement |
 
 Les dépréciations (§5, sans échec) et les ajouts (§4 `grav_digest`, §8 `grav_admin_type`)
 ne sont pas des ruptures.
@@ -130,13 +130,13 @@ L'adresse du contrôle HTTP (`grav_site_check_host`) sera dérivée automatiquem
 
 ---
 
-## 3. Politique de pull : `missing` par défaut (Lot 4)
+## 3. Politique de pull : `missing` par défaut (Lot 4 — appliqué) — **changement de comportement**
 
-Aujourd'hui : `pull: always` à chaque déploiement `started`.
+Avant : `pull: always` à chaque déploiement `started`.
 
-En `2.0.0` : `pull: missing`. Un redémarrage ne dépendra plus de la disponibilité du
-registre si l'image est déjà présente. Pour forcer une récupération :
-`grav_force_pull: true`.
+Depuis ce lot : `pull: missing`. Un redémarrage ne dépend plus de la disponibilité du
+registre si l'image (tag **ou digest**) est déjà présente localement. Pour forcer une
+récupération : `grav_force_pull: true` (→ `pull: always`).
 
 **Action** : si vous comptiez sur `deploy` pour tirer une nouvelle image sans changer
 `grav_version` (tag mobile), ce ne sera plus le cas — épinglez une version explicite

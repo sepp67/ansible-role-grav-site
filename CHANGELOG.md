@@ -74,13 +74,16 @@ découpée en `Ajouté` / `Modifié` / `Déprécié` / `Supprimé` / `Corrigé` 
   digest est fourni, `grav_image:grav_version` sinon — jamais `image:version@digest`.
   `grav_version` reste obligatoire (label humain). `vars/main.yml` (nouveau) porte le
   calcul de la référence effective, source unique pour le compose et la traçabilité.
+- **Modifié** — politique de récupération d'image : `pull: missing` par défaut (au
+  lieu de `always` sur `started`). Un redémarrage ne dépend plus de la disponibilité
+  du registre si l'image est déjà présente. Nouvelle variable `grav_force_pull`
+  (`false` par défaut ; `true` → `pull: always`).
 
-### À venir (Lots 5–9, changements d'interface — `2.0.0`)
+### À venir (Lots 4–9, changements d'interface — `2.0.0`)
 
-- Politique de pull par défaut : `missing` (au lieu de `always`) + `grav_force_pull`
-  — Lot 4 (commit suivant).
 - Traçabilité structurée (`.deployed_state.yml` : `declared_version` / `digest` /
-  `effective_reference` / `deployed_at`) ; fonctionnement sans `gather_facts` — Lot 4.
+  `effective_reference` / `deployed_at`) ; fonctionnement sans `gather_facts` — Lot 4
+  (commit suivant).
 - Garde contre une instance Grav laissée non initialisée (volume `accounts` vide sans
   identifiants) — Lot 6.
 - Validation IPv6 complète de `grav_bind_address` ; adresse du contrôle HTTP dérivée ;

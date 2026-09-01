@@ -121,3 +121,10 @@ grav_manage_docker: true
 # stopped: arrête le service sans supprimer les volumes persistants.
 # restarted: force un redémarrage du conteneur.
 grav_state: "started"
+
+# Politique de récupération d'image (contrat v1.0.1 §5.6). Par défaut le
+# rôle utilise "missing" : l'image n'est tirée que si elle est absente
+# localement — un redémarrage ne dépend donc pas de la disponibilité du
+# registre. Mettre à true pour forcer un "pull always" explicite (récupérer
+# une éventuelle nouvelle image derrière un tag mobile).
+grav_force_pull: false

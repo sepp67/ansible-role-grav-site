@@ -207,6 +207,11 @@ obligatoire dans les deux cas : c'est le label humain (changelog, PR de
 promotion). Sans digest, l'exploitation dépend de la convention de
 non-réécriture des tags ; un digest garantit l'identité exacte de l'image.
 
+**Récupération de l'image** : `pull: missing` par défaut — l'image n'est tirée
+que si elle est absente localement, donc un redémarrage ne dépend pas du
+registre. `grav_force_pull: true` → `pull: always` (utile pour récupérer une
+nouvelle image derrière un tag mobile).
+
 ### Réglages avancés (surchargeables, valeurs par défaut raisonnables)
 
 | Variable | Défaut | Description |
@@ -223,6 +228,7 @@ non-réécriture des tags ; un digest garantit l'identité exacte de l'image.
 | `grav_site_check_path` / `_status` | `/` / `200` | Page réelle vérifiée et code attendu |
 | `grav_site_check_retries` / `_delay` / `_timeout` | `10` / `5` / `5` | Attente de la vérification HTTP |
 | `grav_container_gid` | `82` | GID de `www-data` dans l'image (Alpine) — doit correspondre à l'image utilisée |
+| `grav_force_pull` | `false` | `true` → `pull: always` (récupère une image derrière un tag mobile). Par défaut `pull: missing` : l'image n'est tirée que si absente localement |
 | `grav_manage_docker` | `true` | Installer Docker Engine + le plugin Compose (Debian/Ubuntu) |
 
 ### Valeurs dérivées de `grav_base_directory`
