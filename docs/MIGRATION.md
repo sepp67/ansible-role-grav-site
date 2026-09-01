@@ -1,0 +1,170 @@
+# Guide de migration
+
+## `1.x` → `2.0.0` (en préparation)
+
+`2.0.0` sera une **version majeure** : elle introduit des changements d'interface
+incompatibles, tous annoncés ici. Aucune rupture n'est introduite silencieusement.
+
+Ce document est mis à jour au fil de la refonte. Tant que `2.0.0` n'est pas publiée,
+épinglez la version `1.0.1` :
+
+```yaml
+# requirements.yml
+roles:
+  - name: grav_site
+    src: git+https://github.com/sepp67/ansible-role-grav-site.git
+    version: "v1.0.1"
+```
+
+---
+
+## 1. Retrait de `inventories/production/` (déjà effectif sur `main`)
+
+Le dépôt du rôle ne contient plus de profil d'exploitation réel. L'ancien
+`inventories/production/` (spécifique à `projet-gites`) a été supprimé du suivi Git.
+
+### Si vous déployiez `projet-gites` depuis un clone de ce dépôt
+
+Votre profil et votre secret vivent maintenant **dans votre propre dépôt**
+(un fork d'exploitation, ou le futur `grav-sites-ops`). Procédure, à faire une fois :
+
+1. **Récupérez votre profil.** L'ancien
+   `inventories/production/group_vars/grav_servers/main.yml` contenait :
+
+   ```yaml
+   grav_image: "ghcr.io/sepp67/projet-gites"
+   grav_version: "1.0.7"                     # la version réellement déployée
+   grav_container_name: "projet-gites"
+   grav_base_directory: "/opt/projet-gites"
+   grav_bind_address: "0.0.0.0"              # -> à remplacer par l'IP LAN de la VM (voir §2)
+   grav_http_port: 8080
+   grav_admin_user:     "{{ vault_grav_admin_user }}"
+   grav_admin_password: "{{ vault_grav_admin_password }}"
+   grav_admin_email:    "{{ vault_grav_admin_email }}"
+   grav_admin_fullname: "{{ vault_grav_admin_fullname }}"
+   grav_admin_title:    "{{ vault_grav_admin_title }}"
+   grav_admin_language: "{{ vault_grav_admin_language }}"
+   # grav_secrets:
+   #   - name: email-private.php
+   #     content: "{{ vault_grav_email_private_php }}"
+   ```
+
+   Transposez ces valeurs dans les `host_vars` de votre dépôt d'orchestration :
+
+   ```text
+   votre-depot-ops/
+   ├── requirements.yml                    # grav_site @ git tag vX.Y.Z
+   ├── inventories/grav-vms/
+   │   ├── hosts.yml                       # gites-prod  ansible_host: 192.168.1.xx (IP LAN réelle)
+   │   ├── host_vars/gites-prod.yml        # <- contenu ci-dessus, sans les secrets
+   │   └── host_vars/gites-prod.vault.yml  # <- vos secrets (voir 2)
+   └── playbooks/site.yml
+   ```
+
+2. **Relocalisez votre Vault.** Le fichier chiffré
+   `inventories/production/group_vars/grav_servers/vault.yml` de votre copie de travail
+   **n'a jamais été suivi par Git** (il est exclu par `.gitignore`). Il est toujours
+   présent sur votre disque. Déplacez-le dans votre dépôt d'orchestration :
+
+   ```bash
+   mv inventories/production/group_vars/grav_servers/vault.yml \
+      ../votre-depot-ops/inventories/grav-vms/host_vars/gites-prod.vault.yml
+   ```
+
+   Il reste chiffré ; sa clé Vault ne change pas.
+
+3. **Supprimez le répertoire devenu orphelin** de votre copie de travail :
+
+   ```bash
+   rm -rf inventories/production
+   ```
+
+Le rôle lui-même est inchangé : votre `playbooks/site.yml` d'orchestration l'invoque
+exactement comme avant (`roles: [grav_site]` ou `include_role`).
+
+### Si vous utilisiez le dépôt comme rôle réutilisable
+
+Aucune action. Le rôle (`defaults/`, `tasks/`, `templates/`, `meta/`) est inchangé.
+
+### Nouvel usage autonome (un seul site)
+
+```bash
+cp -r inventories/example inventories/mon-site
+# éditez inventories/mon-site/… puis créez le Vault
+ansible-playbook -i inventories/mon-site/hosts.yml playbooks/deploy.yml --ask-vault-pass
+```
+
+---
+
+## 2. `grav_bind_address` deviendra obligatoire (Lot 3)
+
+Aujourd'hui : `grav_bind_address` a un défaut de `127.0.0.1`.
+
+En `2.0.0` : **aucun défaut**. Vous devrez fournir explicitement l'adresse d'écoute :
+
+| Contexte | Valeur |
+|---|---|
+| Développement / usage strictement local | `127.0.0.1` |
+| VM du réseau local (cas normal) | l'IP LAN de la VM, ex. `192.168.1.98` |
+| Toutes les interfaces (choix assumé) | `0.0.0.0` |
+
+`127.0.0.1` **ne convient pas** si un reverse proxy (Caddy) tourne sur une autre VM :
+il ne pourrait pas joindre l'instance. Utilisez l'IP LAN explicite.
+
+L'adresse du contrôle HTTP (`grav_site_check_host`) sera dérivée automatiquement de
+`grav_bind_address` (adresse précise → cette adresse ; `0.0.0.0` → `127.0.0.1`).
+
+**Action** : ajoutez `grav_bind_address` à votre profil avant de passer en `2.0.0`.
+
+---
+
+## 3. Politique de pull : `missing` par défaut (Lot 4)
+
+Aujourd'hui : `pull: always` à chaque déploiement `started`.
+
+En `2.0.0` : `pull: missing`. Un redémarrage ne dépendra plus de la disponibilité du
+registre si l'image est déjà présente. Pour forcer une récupération :
+`grav_force_pull: true`.
+
+**Action** : si vous comptiez sur `deploy` pour tirer une nouvelle image sans changer
+`grav_version` (tag mobile), ce ne sera plus le cas — épinglez une version explicite
+ou passez `grav_force_pull: true`.
+
+---
+
+## 4. `grav_digest` (Lot 4)
+
+Nouvelle variable optionnelle pour un épinglage immuable :
+
+```yaml
+grav_image: ghcr.io/sepp67/projet-gites
+grav_version: "1.0.7"                     # reste obligatoire (label lisible)
+grav_digest: "sha256:0123…ef"            # optionnel, fortement recommandé pour une VM durable
+```
+
+Référence Docker effective : `image:version` sans digest, `image@digest` avec.
+Jamais `image:version@digest`.
+
+---
+
+## 5. Chemins dérivés : dépréciation (Lot 3)
+
+`grav_pages_directory`, `grav_accounts_directory`, `grav_data_directory`,
+`grav_images_directory`, `grav_secret_directory` restent acceptés en `2.0.0` mais leur
+surcharge explicite émettra un avertissement. Ils sont calculés depuis
+`grav_base_directory`. Retrait éventuel en `3.0.0`.
+
+**Action** : ne les surchargez plus ; définissez uniquement `grav_base_directory`.
+
+---
+
+## 6. Garde contre une instance non initialisée (Lot 6)
+
+`grav-runtime` ne fournit aucun identifiant administrateur par défaut. En `2.0.0`, si le
+volume `accounts` est vide ou absent **et** que `grav_admin_user` / `_password` /
+`_email` ne sont pas tous fournis, le déploiement **échouera avant toute mutation**
+(au lieu de laisser Grav démarrer avec la création du premier compte ouverte sur
+`/admin`). Après démarrage, le rôle vérifiera qu'un compte existe effectivement.
+
+**Action** : gardez vos identifiants admin dans votre Vault, y compris après le
+premier déploiement.
