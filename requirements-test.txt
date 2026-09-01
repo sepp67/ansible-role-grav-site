@@ -1,0 +1,23 @@
+# Dépendances de test du rôle (Molecule + driver Docker). Versionnées : pas de
+# borne entièrement flottante. Utilisées par les scénarios molecule/ et par le
+# job CI Docker (.github/workflows/ci.yml).
+#
+# Création de l'environnement (jamais dans le site-packages système) :
+#
+#   python3 -m venv .venv-test
+#   . .venv-test/bin/activate
+#   pip install --upgrade pip
+#   pip install -r requirements-test.txt
+#   ansible-galaxy collection install -r requirements.yml
+#   ansible-galaxy collection install 'community.docker:>=3.10.2' 'ansible.posix:>=1.4.0'
+#
+# Puis, depuis la racine du dépôt :
+#
+#   molecule test -s install     # T02 / T03 — Debian 12, Ubuntu 22.04, Ubuntu 24.04
+#   molecule test -s deploy      # T09–T16 — Debian 12 (Docker-in-Docker)
+#   molecule test -s pull        # T17 / T18 — Debian 12
+
+ansible-core>=2.17,<2.19
+molecule>=25.6,<26
+molecule-plugins[docker]>=23.7,<24
+docker>=7.1,<8

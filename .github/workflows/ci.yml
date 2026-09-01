@@ -137,3 +137,21 @@ jobs:
         run: |
           cd tests
           ansible-playbook -i inventory test_standalone.yml
+
+  molecule-install:
+    # T02 / T03 — installation de Docker + idempotence sur les trois
+    # plateformes supportées (conteneurs privilégiés + systemd, sans Docker
+    # préinstallé). Le runner GitHub Actions autorise --privileged.
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - name: "Installer Molecule + le driver Docker (requirements-test.txt)"
+        run: |
+          pip install -r requirements-test.txt
+          ansible-galaxy collection install 'community.docker:>=3.10.2' 'ansible.posix:>=1.4.0'
+      - name: "molecule test -s install (Debian 12, Ubuntu 22.04, Ubuntu 24.04)"
+        run: molecule test -s install
