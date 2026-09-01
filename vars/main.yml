@@ -1,0 +1,14 @@
+---
+# Valeurs INTERNES dérivées, calculées par le rôle. Ne pas surcharger.
+#
+# Ce fichier n'héberge QUE des dérivés internes préfixés "_grav_". Les
+# réglages avancés restent dans defaults/main.yml (contrat v1.0.1 §6.2) —
+# ne rien déplacer ici mécaniquement.
+
+# Référence Docker effectivement déployée :
+#   - "grav_image@grav_digest"  si un digest est épinglé ;
+#   - "grav_image:grav_version" sinon.
+# Jamais de pseudo-référence hybride "image:version@digest" (contrat §5.3).
+# Utilisée à la fois par templates/docker-compose.yml.j2 et
+# tasks/version.yml : une seule source de vérité.
+_grav_effective_reference: "{{ (grav_image ~ '@' ~ grav_digest) if (grav_digest | length > 0) else (grav_image ~ ':' ~ grav_version) }}"

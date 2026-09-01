@@ -50,6 +50,19 @@
       "registry.example.net:5000/projet-grav".
     quiet: true
 
+# grav_digest : épinglage immuable OPTIONNEL (contrat v1.0.1 §5). Vide ou
+# "sha256:" + 64 hexadécimaux minuscules. grav_version reste obligatoire
+# (asserté plus haut) même lorsqu'un digest est fourni.
+- name: "Valider grav_digest"
+  ansible.builtin.assert:
+    that:
+      - grav_digest | length == 0 or grav_digest is match('^sha256:[0-9a-f]{64}$')
+    fail_msg: >-
+      grav_digest="{{ grav_digest }}" invalide : doit être vide, ou "sha256:"
+      suivi de 64 caractères hexadécimaux minuscules. Voir docs/MIGRATION.md
+      §4.
+    quiet: true
+
 - name: "Valider le nom de conteneur (grav_container_name)"
   ansible.builtin.assert:
     that:

@@ -1,0 +1,38 @@
+---
+# Inclus par tests/test_assertions.yml. Rend templates/docker-compose.yml.j2
+# EN MÉMOIRE (lookup 'template', aucun fichier, aucun Docker) avec un jeu de
+# variables minimal + un digest éventuel, et vérifie la ligne "image:".
+
+- name: "Cas référence effective : {{ refcase.label }}"
+  vars:
+    grav_image: "ghcr.io/example/site"
+    grav_version: "1.0.0"
+    grav_digest: "{{ refcase.digest }}"
+    _grav_effective_reference: "{{ (grav_image ~ '@' ~ grav_digest) if (grav_digest | length > 0) else (grav_image ~ ':' ~ grav_version) }}"
+    grav_container_name: "grav-site-refcase"
+    grav_restart_policy: "unless-stopped"
+    grav_bind_address: "127.0.0.1"
+    grav_http_port: 8080
+    grav_pages_directory: "/tmp/grav-refcase/data/pages"
+    grav_accounts_directory: "/tmp/grav-refcase/data/accounts"
+    grav_data_directory: "/tmp/grav-refcase/data/data"
+    grav_images_directory: "/tmp/grav-refcase/data/images"
+    grav_secret_directory: "/tmp/grav-refcase/secrets"
+    grav_secrets: []
+    grav_healthcheck_interval: "30s"
+    grav_healthcheck_timeout: "3s"
+    grav_healthcheck_start_period: "10s"
+    grav_healthcheck_retries: 3
+    _grav_rendered_compose: "{{ lookup('template', playbook_dir ~ '/../templates/docker-compose.yml.j2') }}"
+    _grav_image_lines: "{{ _grav_rendered_compose | regex_findall('(?m)^\\s+image:.*$') }}"
+  block:
+    - name: "Vérifier la référence effective rendue dans docker-compose.yml.j2"
+      ansible.builtin.assert:
+        that:
+          - _grav_image_lines | length == 1
+          - refcase.expected in _grav_image_lines[0]
+          - not (_grav_image_lines[0] is search(':1\\.0\\.0@'))
+        fail_msg: >-
+          {{ refcase.label }} : ligne(s) image = {{ _grav_image_lines }},
+          attendu contenant "{{ refcase.expected }}" et jamais "image:version@digest".
+        quiet: true

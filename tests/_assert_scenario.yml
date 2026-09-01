@@ -27,6 +27,7 @@
       vars:
         grav_image: "{{ scenario.overrides.get('grav_image', _grav_baseline.grav_image) }}"
         grav_version: "{{ scenario.overrides.get('grav_version', _grav_baseline.grav_version) }}"
+        grav_digest: "{{ scenario.overrides.get('grav_digest', '') }}"
         grav_bind_address: "{{ scenario.overrides.get('grav_bind_address', _grav_baseline.grav_bind_address) }}"
         grav_admin_type: "{{ scenario.overrides.get('grav_admin_type', '') }}"
         grav_extra_environment: "{{ scenario.overrides.get('grav_extra_environment', {}) }}"

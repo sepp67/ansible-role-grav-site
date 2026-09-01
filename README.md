@@ -184,13 +184,28 @@ exécution (`tasks/assert.yml`).
 | Variable | Défaut | Description |
 |---|---|---|
 | `grav_image` | `""` (obligatoire) | Dépôt d'image, sans tag final ni digest — un port de registre est autorisé (ex. `ghcr.io/sepp67/projet-gites`, `registry.example.net:5000/projet-grav`) |
-| `grav_version` | `""` (obligatoire) | Tag de version — jamais `"latest"` |
+| `grav_version` | `""` (obligatoire) | Tag de version — jamais `"latest"`. Reste le label humain même si un digest est fourni |
+| `grav_digest` | `""` | Épinglage immuable optionnel — `""` ou `sha256:` + 64 hexa. Fortement recommandé pour une VM durable |
 | `grav_container_name` | `grav-site` | Nom du conteneur/service — validé (`^[A-Za-z0-9][A-Za-z0-9._-]*$`, ni `..` `/` `:`) |
 | `grav_bind_address` | *(aucun — obligatoire)* | Adresse d'écoute de l'hôte — voir "Contrat réseau" |
 | `grav_http_port` | `8080` | Port hôte publié vers le port 80 du conteneur — validé (1–65535) |
 | `grav_admin_user` / `grav_admin_password` / `grav_admin_email` | `""` | Bootstrap du premier compte — **les trois ou aucune** (voir "Contrat avec `grav-runtime`") |
 | `grav_secrets` | `[]` | Fichiers secrets à monter en lecture seule (voir "Stratégie des secrets") |
 | `grav_state` | `started` | `started` / `stopped` / `restarted` — validé |
+
+### Référence d'image effective
+
+La référence Docker réellement déployée est :
+
+| `grav_digest` | Référence effective |
+|---|---|
+| vide | `{{ grav_image }}:{{ grav_version }}` |
+| `sha256:…` | `{{ grav_image }}@{{ grav_digest }}` |
+
+Jamais de pseudo-référence `image:version@digest`. `grav_version` reste
+obligatoire dans les deux cas : c'est le label humain (changelog, PR de
+promotion). Sans digest, l'exploitation dépend de la convention de
+non-réécriture des tags ; un digest garantit l'identité exacte de l'image.
 
 ### Réglages avancés (surchargeables, valeurs par défaut raisonnables)
 
@@ -441,7 +456,8 @@ adresse de VM privée, aucune référence au `control-repository` ni à un chemi
 
 - Installation de Docker limitée à Debian/Ubuntu.
 - Pas d'authentification registre (`docker login`) — l'image doit être publique.
-- Un digest immuable n'est pas encore supporté (prévu en `v2.0.0`).
+- La validation IPv6 de `grav_bind_address` reste un pré-contrôle permissif
+  (validation complète et rendu Docker avec crochets prévus au Lot 5).
 
 ## Licence
 

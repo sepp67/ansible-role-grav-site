@@ -61,6 +61,23 @@
         expect_fail: false
         overrides: {grav_image: "projet-grav"}
 
+      # --- grav_digest : forme (Lot 4) ---
+      - label: "grav_digest = sha256 + 64 hexa (valide)"
+        expect_fail: false
+        overrides: {grav_digest: "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"}
+      - label: "grav_digest trop court"
+        expect_fail: true
+        overrides: {grav_digest: "sha256:0123abcd"}
+      - label: "grav_digest sans préfixe sha256:"
+        expect_fail: true
+        overrides: {grav_digest: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef01"}
+      - label: "grav_digest préfixe majuscule"
+        expect_fail: true
+        overrides: {grav_digest: "SHA256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"}
+      - label: "grav_digest hexa majuscule"
+        expect_fail: true
+        overrides: {grav_digest: "sha256:0123456789ABCDEF0123456789abcdef0123456789abcdef0123456789abcdef"}
+
       # --- grav_bind_address obligatoire + forme (Lot 3) ---
       - label: "grav_bind_address absente"
         expect_fail: true
@@ -149,6 +166,24 @@
         grav_bind_address: "{{ _grav_baseline.grav_bind_address }}"
         grav_pages_directory: "/mnt/other-disk/pages"
 
+    # Rendu réel de templates/docker-compose.yml.j2 (aucun Docker) : la
+    # ligne "image:" doit valoir "grav_image:grav_version" sans digest,
+    # "grav_image@grav_digest" avec — JAMAIS "image:version@digest".
+    - name: "Rendre le compose pour chaque cas de référence effective"
+      ansible.builtin.include_tasks: _reference_case.yml
+      loop:
+        - label: "sans digest"
+          digest: ""
+          expected: "ghcr.io/example/site:1.0.0"
+        - label: "avec digest"
+          digest: "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+          expected: "ghcr.io/example/site@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+      loop_control:
+        loop_var: refcase
+        label: "{{ refcase.label }}"
+
     - name: "Tous les scénarios ont produit le résultat attendu"
       ansible.builtin.debug:
-        msg: "{{ _grav_assert_scenarios | length }} scénarios de la matrice + 1 cas dérivé vérifiés avec succès."
+        msg: >-
+          {{ _grav_assert_scenarios | length }} scénarios d'assertion
+          + 1 cas dérivé + 2 cas de référence effective vérifiés avec succès.

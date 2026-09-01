@@ -67,18 +67,25 @@ découpée en `Ajouté` / `Modifié` / `Déprécié` / `Supprimé` / `Corrigé` 
   rejouant uniquement `tasks/assert.yml`, sans Docker. Intégré à la CI
   (`static-checks`).
 
-### À venir (Lots 4–9, changements d'interface — `2.0.0`)
+### Déploiement et traçabilité (Lot 4)
 
-- Ajout de `grav_digest` (épinglage immuable optionnel) et de la référence Docker
-  effective (`image:version` ou `image@digest`) — différé au Lot 4.
-- Politique de pull par défaut : `missing` (au lieu de `always`) + `grav_force_pull`.
+- **Ajouté** — `grav_digest` (`""` ou `sha256:` + 64 hexa) : épinglage immuable
+  optionnel. La référence Docker effective devient `grav_image@grav_digest` si un
+  digest est fourni, `grav_image:grav_version` sinon — jamais `image:version@digest`.
+  `grav_version` reste obligatoire (label humain). `vars/main.yml` (nouveau) porte le
+  calcul de la référence effective, source unique pour le compose et la traçabilité.
+
+### À venir (Lots 5–9, changements d'interface — `2.0.0`)
+
+- Politique de pull par défaut : `missing` (au lieu de `always`) + `grav_force_pull`
+  — Lot 4 (commit suivant).
+- Traçabilité structurée (`.deployed_state.yml` : `declared_version` / `digest` /
+  `effective_reference` / `deployed_at`) ; fonctionnement sans `gather_facts` — Lot 4.
 - Garde contre une instance Grav laissée non initialisée (volume `accounts` vide sans
   identifiants) — Lot 6.
-- Fenêtre d'attente du healthcheck cohérente avec l'état Docker `starting` ;
-  adresse du contrôle HTTP dérivée de `grav_bind_address` ; crochets IPv6 dans le
-  rendu Docker Compose — Lot 5.
-- Traçabilité structurée (`declared_version` / `digest` / `effective_reference` /
-  `deployed_at`) ; fonctionnement sans `gather_facts` — Lot 4.
+- Validation IPv6 complète de `grav_bind_address` ; adresse du contrôle HTTP dérivée ;
+  fenêtre d'attente du healthcheck cohérente avec l'état Docker `starting` ; crochets
+  IPv6 dans le rendu Docker Compose — Lot 5.
 - Couverture Molecule de l'installation de Docker — Lot 7.
 
 ## [1.0.1] — 2026-07-25

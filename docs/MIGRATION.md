@@ -144,9 +144,10 @@ ou passez `grav_force_pull: true`.
 
 ---
 
-## 4. `grav_digest` (Lot 4)
+## 4. `grav_digest` (Lot 4 — appliqué)
 
-Nouvelle variable optionnelle pour un épinglage immuable :
+Nouvelle variable **optionnelle** (additive, pas une rupture) pour un épinglage
+immuable :
 
 ```yaml
 grav_image: ghcr.io/sepp67/projet-gites
@@ -154,8 +155,14 @@ grav_version: "1.0.7"                     # reste obligatoire (label lisible)
 grav_digest: "sha256:0123…ef"            # optionnel, fortement recommandé pour une VM durable
 ```
 
-Référence Docker effective : `image:version` sans digest, `image@digest` avec.
-Jamais `image:version@digest`.
+Validation : `""` ou `sha256:` suivi de 64 caractères hexadécimaux **minuscules**.
+
+Référence Docker effective : `grav_image:grav_version` sans digest,
+`grav_image@grav_digest` avec. **Jamais** `image:version@digest`.
+
+**Action** : aucune si vous ne l'utilisez pas. Pour épingler, ajoutez `grav_digest`
+à votre profil (le digest est visible via `docker buildx imagetools inspect` ou
+`docker inspect` de l'image, ou dans la sortie de `docker push`).
 
 ---
 

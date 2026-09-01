@@ -4,6 +4,15 @@
 grav_image: ""
 grav_version: ""
 
+# Épinglage immuable OPTIONNEL. Vide : la référence déployée est
+# "grav_image:grav_version" et l'exploitation dépend de la convention de
+# non-réécriture des tags. Renseigné ("sha256:" + 64 hexa) : la référence
+# devient "grav_image@grav_digest" — identité de l'image garantie.
+# grav_version reste obligatoire dans les deux cas (label humain).
+# Fortement recommandé pour une VM durable. Voir README.md et
+# docs/MIGRATION.md §4.
+grav_digest: ""
+
 # Nom du conteneur / service docker compose, et racine de l'instance sur
 # l'hôte. Une instance = un répertoire.
 grav_container_name: "grav-site"

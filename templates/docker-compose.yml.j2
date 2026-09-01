@@ -5,7 +5,7 @@
 
 services:
   {{ grav_container_name }}:
-    image: "{{ grav_image }}:{{ grav_version }}"
+    image: "{{ _grav_effective_reference }}"
     container_name: "{{ grav_container_name }}"
     restart: "{{ grav_restart_policy }}"
 
