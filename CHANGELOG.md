@@ -92,13 +92,18 @@ découpée en `Ajouté` / `Modifié` / `Déprécié` / `Supprimé` / `Corrigé` 
   contrôleur) au lieu de `ansible_date_time` : la traçabilité **fonctionne sans
   `gather_facts`** (contrat §11.6). Registres de `tasks/version.yml` préfixés `_grav_`.
 
-### À venir (Lots 5–9, changements d'interface — `2.0.0`)
+### Réseau et santé (Lot 5)
+
+- **RUPTURE** — `grav_bind_address` : validation restreinte à l'**IPv4 stricte**
+  (octets 0–255, sans zéro initial, 4 octets) ou `0.0.0.0`. L'**IPv6 est refusée** en
+  `2.0.0` (dont `::`) — une validation IPv6 fiable exigerait `ansible.utils` +
+  `netaddr`. Le pré-contrôle permissif du Lot 3 (« toute chaîne contenant `:` ») est
+  supprimé.
+
+### À venir (Lots 6–9, changements d'interface — `2.0.0`)
 
 - Garde contre une instance Grav laissée non initialisée (volume `accounts` vide sans
   identifiants) — Lot 6.
-- Validation IPv6 complète de `grav_bind_address` ; adresse du contrôle HTTP dérivée ;
-  fenêtre d'attente du healthcheck cohérente avec l'état Docker `starting` ; crochets
-  IPv6 dans le rendu Docker Compose — Lot 5.
 - Couverture Molecule de l'installation de Docker — Lot 7.
 
 ## [1.0.1] — 2026-07-25

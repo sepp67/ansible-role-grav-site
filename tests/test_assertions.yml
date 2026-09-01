@@ -78,7 +78,7 @@
         expect_fail: true
         overrides: {grav_digest: "sha256:0123456789ABCDEF0123456789abcdef0123456789abcdef0123456789abcdef"}
 
-      # --- grav_bind_address obligatoire + forme (Lot 3) ---
+      # --- grav_bind_address : obligatoire (Lot 3) + IPv4 stricte, IPv6 refusée (Lot 5) ---
       - label: "grav_bind_address absente"
         expect_fail: true
         overrides: {grav_bind_address: ""}
@@ -88,15 +88,44 @@
       - label: "grav_bind_address = octet hors plage"
         expect_fail: true
         overrides: {grav_bind_address: "999.1.1.1"}
+      - label: "grav_bind_address = octet 256 (juste hors plage)"
+        expect_fail: true
+        overrides: {grav_bind_address: "256.1.1.1"}
+      - label: "grav_bind_address = octet à zéro initial (01.2.3.4)"
+        expect_fail: true
+        overrides: {grav_bind_address: "01.2.3.4"}
+      - label: "grav_bind_address = seulement 3 octets (1.2.3)"
+        expect_fail: true
+        overrides: {grav_bind_address: "1.2.3"}
+      - label: "grav_bind_address = 5 octets (1.2.3.4.5)"
+        expect_fail: true
+        overrides: {grav_bind_address: "1.2.3.4.5"}
       - label: "grav_bind_address = 0.0.0.0"
         expect_fail: false
         overrides: {grav_bind_address: "0.0.0.0"}
       - label: "grav_bind_address = adresse LAN"
         expect_fail: false
         overrides: {grav_bind_address: "192.168.1.10"}
-      - label: "grav_bind_address = ::1 (pré-contrôle IPv6 permissif — accepté au Lot 3)"
+      - label: "grav_bind_address = 10.0.0.1"
         expect_fail: false
+        overrides: {grav_bind_address: "10.0.0.1"}
+      - label: "grav_bind_address = 255.255.255.255 (octets max valides)"
+        expect_fail: false
+        overrides: {grav_bind_address: "255.255.255.255"}
+      # Lot 5 : l'IPv6 est REFUSÉE — une chaîne contenant ":" n'est jamais
+      # une adresse valide (le pré-contrôle permissif du Lot 3 est supprimé).
+      - label: "grav_bind_address = :: (IPv6 — refusée en v2.0.0)"
+        expect_fail: true
+        overrides: {grav_bind_address: "::"}
+      - label: "grav_bind_address = ::1 (IPv6 loopback — refusée en v2.0.0)"
+        expect_fail: true
         overrides: {grav_bind_address: "::1"}
+      - label: "grav_bind_address = 2001:db8::1 (IPv6 — refusée en v2.0.0)"
+        expect_fail: true
+        overrides: {grav_bind_address: "2001:db8::1"}
+      - label: "grav_bind_address = [::1] (IPv6 entre crochets — refusée)"
+        expect_fail: true
+        overrides: {grav_bind_address: "[::1]"}
 
       # --- grav_admin_type (Lot 3) ---
       # Contrat vérifié dans grav-runtime docker/bootstrap-admin.sh:62-69 :

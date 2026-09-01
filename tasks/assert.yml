@@ -96,9 +96,7 @@
     quiet: true
 
 # grav_bind_address est OBLIGATOIRE depuis la v2.0.0 (contrat v1.0.1 §7.1) :
-# aucun défaut implicite, l'appelant doit exprimer son intention. Seule la
-# FORME est validée ici (interface) ; le rendu Docker Compose du bind et
-# l'adresse du contrôle HTTP dérivée restent inchangés dans ce lot.
+# aucun défaut implicite, l'appelant doit exprimer son intention.
 - name: "Vérifier que grav_bind_address est renseignée"
   ansible.builtin.assert:
     that:
@@ -106,29 +104,28 @@
     fail_msg: >-
       grav_bind_address est obligatoire (contrat v1.0.1 §7.1) : indiquez
       l'adresse d'écoute explicite de cette instance — "127.0.0.1" (usage
-      local), l'adresse LAN de la VM (ex. "192.168.1.10"), ou "0.0.0.0" /
-      "::" (toutes les interfaces, choix assumé). Voir README.md
-      "Contrat réseau".
+      local), l'adresse LAN de la VM (ex. "192.168.1.10"), ou "0.0.0.0"
+      (toutes les interfaces, choix assumé). Voir README.md "Contrat réseau".
     quiet: true
 
-# Forme de grav_bind_address. IPv4 : validation stricte (chaque octet
-# 0-255). IPv6 : PRÉ-CONTRÔLE PERMISSIF seulement — toute chaîne contenant
-# ":" passe (une IPv6 littérale complète n'est PAS validée ici). La
-# validation IPv6 réelle et le rendu Docker avec crochets ("[::]:port:80")
-# appartiennent au Lot 5. Cette assertion garantit surtout : non vide, et
-# pas un nom d'hôte simple (rejeté car sans "." ni ":").
-- name: "Valider la forme de grav_bind_address (IPv4 stricte, IPv6 pré-contrôle permissif)"
+# Forme de grav_bind_address. v2.0.0 valide et supporte UNIQUEMENT l'IPv4
+# littérale (ou "0.0.0.0"). Validation stricte : chaque octet 0-255, sans
+# zéro initial, exactement 4 octets. L'IPv6 (dont "::") est REFUSÉE : une
+# validation IPv6 fiable exigerait ansible.utils + netaddr (dépendances
+# disproportionnées pour ce rôle) — voir docs/MIGRATION.md. Une chaîne
+# contenant ":" n'est donc jamais considérée comme une adresse valide.
+- name: "Valider la forme de grav_bind_address (IPv4 uniquement en v2.0.0)"
   ansible.builtin.assert:
     that:
       - >-
-        grav_bind_address in ['0.0.0.0', '::']
-        or grav_bind_address is match('^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)(\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)){3}$')
-        or ':' in grav_bind_address
+        grav_bind_address == '0.0.0.0'
+        or grav_bind_address is match('^(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])(\.(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])){3}$')
     fail_msg: >-
-      grav_bind_address="{{ grav_bind_address }}" invalide : doit être une
-      adresse IPv4 littérale valide, "0.0.0.0"/"::", ou une valeur contenant
-      ":" (pré-contrôle IPv6 permissif — la validation IPv6 complète et le
-      rendu Docker arrivent au Lot 5). Un nom d'hôte simple est refusé.
+      grav_bind_address="{{ grav_bind_address }}" invalide : v2.0.0 supporte
+      uniquement une adresse IPv4 littérale (octets 0-255, sans zéro initial)
+      ou "0.0.0.0". L'IPv6 (dont "::") n'est pas prise en charge à ce stade —
+      liez l'instance à une adresse IPv4 et laissez le reverse proxy gérer
+      l'IPv6. Un nom d'hôte est également refusé. Voir docs/MIGRATION.md.
     quiet: true
 
 - name: "Valider grav_healthcheck_retries et grav_deploy_wait_retries"

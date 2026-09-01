@@ -280,10 +280,13 @@ ansible-vault encrypt <votre-inventaire>/group_vars/grav_servers/vault.yml
 ## Contrat réseau
 
 `grav_bind_address` est **obligatoire** (aucun défaut). Validation avant toute
-mutation (`tasks/assert.yml`) : IPv4 littérale **stricte** (chaque octet 0–255),
-`0.0.0.0` / `::`, ou toute valeur contenant `:` (**pré-contrôle IPv6
-permissif** — la validation IPv6 complète et le rendu Docker avec crochets
-arrivent au Lot 5). Un nom d'hôte simple est refusé. Trois usages :
+mutation (`tasks/assert.yml`) : **IPv4 littérale stricte** (chaque octet 0–255,
+sans zéro initial, 4 octets) ou `0.0.0.0`. Un nom d'hôte est refusé.
+
+**v2.0.0 : IPv4 uniquement.** L'IPv6 (dont `::`) est refusée avec un message
+explicite — une validation IPv6 fiable exigerait `ansible.utils` + `netaddr`,
+disproportionnés pour ce rôle. Liez l'instance à une adresse IPv4 et gérez
+l'IPv6 au niveau du reverse proxy (voir [`docs/MIGRATION.md`](docs/MIGRATION.md)).
 
 ```yaml
 grav_bind_address: 127.0.0.1     # usage strictement local

@@ -21,9 +21,9 @@ grav_base_directory: "/opt/grav-site/{{ grav_container_name }}"
 # Réseau. Le rôle ne gère jamais de reverse proxy ni de TLS. Adresse d'écoute
 # OBLIGATOIRE (contrat v1.0.1 §7.1) : aucune valeur implicite, l'appelant
 # doit exprimer son intention — "127.0.0.1" (usage strictement local),
-# l'adresse LAN de la VM (cas normal d'une instance durable), ou
-# "0.0.0.0"/"::" (toutes les interfaces, choix assumé). Voir README.md
-# "Contrat réseau" et tasks/assert.yml pour la validation de forme.
+# l'adresse LAN IPv4 de la VM (cas normal d'une instance durable), ou
+# "0.0.0.0" (toutes les interfaces, choix assumé). v2.0.0 : IPv4 uniquement
+# (IPv6 refusée — voir docs/MIGRATION.md). Voir README.md "Contrat réseau".
 grav_bind_address: ""
 grav_http_port: 8080
 

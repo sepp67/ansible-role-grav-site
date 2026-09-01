@@ -20,7 +20,7 @@ roles:
 
 | # | Rupture | Lot | Action minimale |
 |---|---|---|---|
-| §2 | `grav_bind_address` **obligatoire** (plus de défaut) | 3 (appliqué) | Ajouter `grav_bind_address` à votre profil |
+| §2 | `grav_bind_address` **obligatoire** (plus de défaut) + **IPv4 uniquement** (IPv6 refusée) | 3, 5 (appliqué) | Ajouter `grav_bind_address` (IPv4 littérale) à votre profil |
 | §7 | `grav_image` : tag ou digest incorporé **refusé** | 3 (appliqué) | Déplacer le tag vers `grav_version` |
 | §9 | `grav_extra_environment` : **clés validées** (`^GRAV_[A-Z0-9_]+$`, pas de clé réservée) | 3 (appliqué) | Renommer/retirer les clés non conformes |
 | §3 | Politique de pull : `always` → `missing` | 4 (appliqué) | `grav_force_pull: true` pour retrouver l'ancien comportement |
@@ -108,11 +108,11 @@ ansible-playbook -i inventories/mon-site/hosts.yml playbooks/deploy.yml --ask-va
 
 ---
 
-## 2. `grav_bind_address` est désormais obligatoire (Lot 3 — appliqué)
+## 2. `grav_bind_address` : obligatoire (Lot 3) + IPv4 uniquement (Lot 5) — appliqué
 
 Avant : `grav_bind_address` avait un défaut de `127.0.0.1`.
 
-Depuis ce lot : **aucun défaut**. Vous devez fournir explicitement l'adresse d'écoute :
+Depuis le Lot 3 : **aucun défaut**. Vous devez fournir explicitement l'adresse d'écoute :
 
 | Contexte | Valeur |
 |---|---|
@@ -123,10 +123,29 @@ Depuis ce lot : **aucun défaut**. Vous devez fournir explicitement l'adresse d'
 `127.0.0.1` **ne convient pas** si un reverse proxy (Caddy) tourne sur une autre VM :
 il ne pourrait pas joindre l'instance. Utilisez l'IP LAN explicite.
 
-L'adresse du contrôle HTTP (`grav_site_check_host`) sera dérivée automatiquement de
-`grav_bind_address` (adresse précise → cette adresse ; `0.0.0.0` → `127.0.0.1`).
+### Lot 5 : validation IPv4 stricte, IPv6 refusée
 
-**Action** : ajoutez `grav_bind_address` à votre profil avant de passer en `2.0.0`.
+`tasks/assert.yml` valide désormais `grav_bind_address` **avant toute mutation** :
+
+- **IPv4 littérale stricte** — chaque octet 0–255, sans zéro initial (`01.2.3.4`
+  refusé), exactement 4 octets (`1.2.3` et `1.2.3.4.5` refusés) ;
+- ou la valeur spéciale `0.0.0.0` ;
+- un **nom d'hôte** est refusé (le rôle n'assume aucune résolution DNS) ;
+- **toute IPv6 est refusée**, y compris `::`, `::1`, `2001:db8::1` — une chaîne
+  contenant `:` n'est jamais considérée comme une adresse valide.
+
+Le pré-contrôle permissif du Lot 3 (« toute chaîne contenant `:` est acceptée comme
+IPv6 ») est **supprimé**. Une validation IPv6 fiable exigerait `ansible.utils` +
+`netaddr` : dépendances jugées disproportionnées pour ce rôle. `REQ-017` reste donc
+**partiellement conforme** — IPv4 pleinement validé, IPv6 explicitement hors périmètre
+`2.0.0` et documenté ici.
+
+**Si vous aviez besoin d'IPv6** : liez l'instance à une adresse IPv4 et laissez le
+reverse proxy en amont terminer l'IPv6. Le rôle ne gère de toute façon ni TLS ni
+reverse proxy.
+
+**Action** : ajoutez `grav_bind_address` (adresse IPv4 littérale ou `0.0.0.0`) à votre
+profil avant de passer en `2.0.0`.
 
 ---
 
