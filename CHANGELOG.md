@@ -144,9 +144,15 @@ découpée en `Ajouté` / `Modifié` / `Déprécié` / `Supprimé` / `Corrigé` 
   deux gardes n'utilisent que `stat` et `find` (jamais `cat` / `slurp` / `from_yaml`),
   sous `no_log`.
 
-### À venir (Lots 7–9)
+### Tests Docker et plateformes (Lot 7)
 
-- Couverture Molecule de l'installation de Docker — Lot 7.
+- **RUPTURE (support)** — **Debian 11 (bullseye) retirée** des plateformes
+  officiellement supportées de `2.0.0`. `meta/main.yml` ne déclare plus que
+  Debian 12 (bookworm), Ubuntu 22.04 (jammy) et Ubuntu 24.04 (noble). Le rôle peut
+  continuer à fonctionner sur bullseye (le dépôt APT Docker existe encore) mais ce
+  n'est ni testé ni garanti. Voir `docs/MIGRATION.md`.
+
+### À venir (Lots 8–9)
 
 ## [1.0.1] — 2026-07-25
 

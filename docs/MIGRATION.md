@@ -390,3 +390,20 @@ persistant (`pages`, `accounts`, `data`, `images`). Un `grav_state: stopped`
 **Action** : si vous aviez réduit `grav_deploy_wait_retries` / `_delay` sous le seuil
 de `120 s` combiné, remontez-les (ou acceptez le nouveau défaut). Le rôle nettoie
 lui-même `.last_failure.log` au retour au vert ; une purge manuelle reste possible.
+
+---
+
+## 12. Plateformes supportées : Debian 11 retirée (Lot 7 — appliqué)
+
+`meta/main.yml` ne déclare plus que **Debian 12 (bookworm)**, **Ubuntu 22.04
+(jammy)** et **Ubuntu 24.04 (noble)**. **Debian 11 (bullseye) est retirée** des
+plateformes officiellement supportées de `2.0.0`.
+
+`tasks/docker.yml` peut encore fonctionner sur bullseye (le dépôt APT
+`download.docker.com/linux/debian bullseye` existe toujours), mais l'installation de
+Docker n'y est **ni testée ni garantie** : la couverture Molecule de la CI
+(`molecule/install`) porte uniquement sur les trois plateformes ci-dessus.
+
+**Action** : si une VM tourne encore sous Debian 11, planifiez sa montée en
+Debian 12 avant de passer le rôle en `2.0.0`, ou installez Docker Engine + le plugin
+Compose vous-même et déployez avec `grav_manage_docker: false`.

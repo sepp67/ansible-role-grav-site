@@ -70,11 +70,14 @@ et les volumes ; sauvegarder ou restaurer des données ; effectuer un rollback a
 Debian et Ubuntu uniquement lorsque `grav_manage_docker: true` (`tasks/docker.yml`
 utilise le dépôt APT officiel Docker), architectures `x86_64` / `aarch64`.
 
-| Distribution | Testée en CI |
+| Distribution | Installation Docker |
 |---|---|
-| Debian 12 (bookworm) | oui (à venir, refonte `v2`) |
-| Ubuntu 22.04 (jammy) | oui (à venir, refonte `v2`) |
-| Ubuntu 24.04 (noble) | oui (à venir, refonte `v2`) |
+| Debian 12 (bookworm) | supportée |
+| Ubuntu 22.04 (jammy) | supportée |
+| Ubuntu 24.04 (noble) | supportée |
+
+**Debian 11 (bullseye) n'est plus supportée** en `2.0.0` (retirée de `meta/main.yml` —
+voir [`docs/MIGRATION.md`](docs/MIGRATION.md)).
 
 Sur un autre OS : `grav_manage_docker: false` et installez Docker Engine + le plugin
 Docker Compose vous-même. Le reste du rôle est indépendant de l'OS.
