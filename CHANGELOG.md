@@ -113,8 +113,13 @@ découpée en `Ajouté` / `Modifié` / `Déprécié` / `Supprimé` / `Corrigé` 
   `retries` du healthcheck par défaut).
 - **Corrigé** — chemin d'échec (`rescue`) : les logs du conteneur ne sont plus
   déversés dans la sortie Ansible. Ils sont capturés avec `no_log` et écrits dans
-  `{{ grav_base_directory }}/.last_failure.log` (mode `0600`, root) ; le message
-  d'erreur, lui, reste lisible et renvoie vers ce fichier.
+  `{{ grav_base_directory }}/.last_failure.log` (créé ou remplacé en `0600`,
+  `root:root`) ; le message d'erreur, lui, reste lisible et renvoie vers ce fichier.
+- **Ajouté** — chemin de succès (`tasks/clear_failure_diagnostic.yml`) : un
+  `.last_failure.log` laissé par un échec précédent est **supprimé** dès que le
+  déploiement redevient sain (healthcheck `healthy` + page OK). Idempotent, ne lit
+  jamais le fichier, ne touche aucun répertoire persistant. Couvert par
+  `tests/test_failure_log_lifecycle.yml` (sans Docker, intégré à la CI).
 
 ### À venir (Lots 6–9, changements d'interface — `2.0.0`)
 

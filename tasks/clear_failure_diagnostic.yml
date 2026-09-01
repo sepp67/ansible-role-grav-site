@@ -1,0 +1,14 @@
+---
+# Chemin de SUCCÈS du healthcheck. Retire le fichier de diagnostic
+# {{ grav_base_directory }}/.last_failure.log écrit par un passage en échec
+# précédent (voir le "rescue" de healthcheck.yml) : une fois le déploiement
+# redevenu sain, ce diagnostic est périmé et ne doit pas induire en erreur.
+#
+# state: absent est idempotent (aucune erreur si le fichier n'existe pas) et
+# ne lit jamais le contenu du fichier — rien n'apparaît dans la sortie
+# Ansible. Ne cible QUE ce fichier, à la racine de l'instance : aucun
+# sous-répertoire persistant (pages/accounts/data/images) n'est touché.
+- name: "Retirer un diagnostic d'échec obsolète (déploiement sain)"
+  ansible.builtin.file:
+    path: "{{ grav_base_directory }}/.last_failure.log"
+    state: absent

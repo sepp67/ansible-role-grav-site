@@ -41,11 +41,13 @@ de ce dépôt ni de `grav-sites-ops`.
 4. Installe les fichiers secrets fournis par l'appelant (jamais générés).
 5. Génère un `docker-compose.yml` et un `grav.env` génériques.
 6. Récupère l'image demandée et applique l'état voulu au conteneur.
-7. Attend un **verdict de santé Docker définitif** (`healthy` ou `unhealthy`, jamais
-   `starting`), exige `healthy`, puis vérifie qu'une page réelle du site répond. En
-   cas d'échec, les derniers logs du conteneur sont écrits dans
-   `{{ grav_base_directory }}/.last_failure.log` (mode `0600`, root, **jamais affichés
-   dans la sortie Ansible**) et le message d'erreur renvoie vers ce fichier.
+7. Attend un **verdict de santé Docker** : tant que Docker répond `starting`, le rôle
+   patiente (fenêtre `300 s` par défaut, **pas** une période de récupération) ;
+   `healthy` = succès, `unhealthy` = échec immédiat. Vérifie ensuite qu'une page
+   réelle du site répond. En cas d'échec, les derniers logs du conteneur sont écrits
+   dans `{{ grav_base_directory }}/.last_failure.log` (`0600`, `root:root`, **jamais
+   affichés dans la sortie Ansible**) et le message d'erreur renvoie vers ce fichier.
+   Au retour au vert, ce fichier de diagnostic est supprimé.
 8. Enregistre l'état de déploiement (`.deployed_state.yml` structuré,
    `.deployed_version`, `deployed_versions.log` append-only).
 

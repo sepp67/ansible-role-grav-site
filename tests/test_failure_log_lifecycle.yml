@@ -1,0 +1,120 @@
+---
+# T (Lot 5) — Cycle de vie de .last_failure.log, SANS Docker, SANS VM.
+#
+# Rejoue UNIQUEMENT le chemin de succès du healthcheck
+# (tasks/clear_failure_diagnostic.yml, appelé en fin de bloc dans
+# tasks/healthcheck.yml) dans un répertoire /tmp local et vérifie :
+#   - un .last_failure.log obsolète (0600) est supprimé après un contrôle sain ;
+#   - les répertoires persistants (pages/accounts/data/images) et leur
+#     contenu ne sont jamais touchés ;
+#   - l'opération est idempotente (aucune erreur si le fichier est absent) ;
+#   - aucun contenu de journal n'apparaît dans la sortie (state: absent ne
+#     lit pas le fichier).
+#
+# Le chemin d'ÉCHEC (écriture du fichier 0600 root + no_log sur la capture
+# des logs) reste couvert par le test fonctionnel Docker tests/test.yml
+# (T16) — TEST GAP hors CI, exécuté sur le runner GitHub.
+#
+# Usage (depuis la racine du dépôt) :
+#   cd tests && ansible-playbook -i inventory test_failure_log_lifecycle.yml
+
+- name: "T — Cycle de vie de .last_failure.log (aucun Docker, aucune VM)"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    _grav_flog_dir: "/tmp/grav-faillog-test"
+    _grav_flog_persist: [pages, accounts, data, images]
+
+  tasks:
+    - name: "Repartir d'un répertoire d'instance propre"
+      ansible.builtin.file:
+        path: "{{ _grav_flog_dir }}"
+        state: "{{ item }}"
+        mode: "0755"
+      loop: [absent, directory]
+
+    - name: "Simuler l'arborescence persistante de grav-runtime"
+      ansible.builtin.file:
+        path: "{{ _grav_flog_dir }}/data/{{ item }}"
+        state: directory
+        mode: "0755"
+      loop: "{{ _grav_flog_persist }}"
+
+    - name: "Déposer un contenu persistant témoin dans chaque volume"
+      ansible.builtin.copy:
+        content: "sentinelle {{ item }} — ne doit jamais être touchée\n"
+        dest: "{{ _grav_flog_dir }}/data/{{ item }}/.sentinelle"
+        mode: "0644"
+      loop: "{{ _grav_flog_persist }}"
+
+    - name: "Déposer un .last_failure.log obsolète (0600, comme le rescue)"
+      ansible.builtin.copy:
+        content: "ancien diagnostic d'échec — périmé\n"
+        dest: "{{ _grav_flog_dir }}/.last_failure.log"
+        mode: "0600"
+
+    - name: "Enregistrer l'empreinte des sentinelles AVANT"
+      ansible.builtin.stat:
+        path: "{{ _grav_flog_dir }}/data/{{ item }}/.sentinelle"
+        checksum_algorithm: sha1
+      register: _grav_flog_before
+      loop: "{{ _grav_flog_persist }}"
+
+    - name: "Rejouer le chemin de succès du healthcheck"  # noqa: role-name[path]
+      ansible.builtin.include_role:
+        name: "{{ playbook_dir }}/.."
+        tasks_from: clear_failure_diagnostic
+      vars:
+        grav_base_directory: "{{ _grav_flog_dir }}"
+
+    - name: "Relire l'état APRÈS"
+      ansible.builtin.stat:
+        path: "{{ _grav_flog_dir }}/{{ item }}"
+        checksum_algorithm: sha1
+      register: _grav_flog_after
+      loop:
+        - ".last_failure.log"
+        - "data/pages/.sentinelle"
+        - "data/accounts/.sentinelle"
+        - "data/data/.sentinelle"
+        - "data/images/.sentinelle"
+
+    - name: "Vérifier : diagnostic supprimé, volumes persistants intacts"
+      ansible.builtin.assert:
+        that:
+          - not _grav_flog_after.results[0].stat.exists
+          - _grav_flog_after.results[1].stat.exists
+          - _grav_flog_after.results[2].stat.exists
+          - _grav_flog_after.results[3].stat.exists
+          - _grav_flog_after.results[4].stat.exists
+          - _grav_flog_after.results[1].stat.checksum == _grav_flog_before.results[0].stat.checksum
+          - _grav_flog_after.results[2].stat.checksum == _grav_flog_before.results[1].stat.checksum
+          - _grav_flog_after.results[3].stat.checksum == _grav_flog_before.results[2].stat.checksum
+          - _grav_flog_after.results[4].stat.checksum == _grav_flog_before.results[3].stat.checksum
+        fail_msg: >-
+          Cycle de vie de .last_failure.log incorrect :
+          existe encore = {{ _grav_flog_after.results[0].stat.exists }} ;
+          sentinelles présentes =
+          {{ _grav_flog_after.results[1:] | map(attribute='stat.exists') | list }}
+        quiet: true
+
+    - name: "Second passage sur un répertoire déjà sain (idempotence)"  # noqa: role-name[path]
+      ansible.builtin.include_role:
+        name: "{{ playbook_dir }}/.."
+        tasks_from: clear_failure_diagnostic
+      vars:
+        grav_base_directory: "{{ _grav_flog_dir }}"
+
+    - name: "Nettoyer"
+      ansible.builtin.file:
+        path: "{{ _grav_flog_dir }}"
+        state: absent
+
+    - name: "Cycle de vie vérifié"
+      ansible.builtin.debug:
+        msg: >-
+          .last_failure.log obsolète supprimé après un contrôle sain ;
+          pages / accounts / data / images (contenu + somme de contrôle)
+          intacts ; second passage idempotent.

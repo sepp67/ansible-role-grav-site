@@ -1,11 +1,18 @@
 ---
 # Le HEALTHCHECK Docker natif de l'image (GET /healthz, technique, ne passe
-# jamais par Grav) prouve que Nginx et PHP-FPM sont vivants et reliés. Ce
-# rôle attend un VERDICT définitif de ce healthcheck ("healthy" ou
-# "unhealthy" — jamais "starting"), puis vérifie en plus qu'une page réelle
-# du site répond — voir grav-runtime README.md "Healthcheck" : la limite
-# assumée du HEALTHCHECK natif est explicitement documentée là, ce second
-# contrôle est ce que le runtime attend du rôle de déploiement.
+# jamais par Grav) prouve que Nginx et PHP-FPM sont vivants et reliés.
+#
+# Sémantique de l'attente :
+#   - "starting"  -> le rôle CONTINUE d'attendre (dans la fenêtre bornée) ;
+#   - "healthy"   -> succès, on passe au contrôle HTTP applicatif ;
+#   - "unhealthy" -> ÉCHEC IMMÉDIAT (rescue), aucune nouvelle tentative.
+# La fenêtre retries × delay (>= 120 s, validée dans tasks/assert.yml ;
+# 300 s par défaut) borne UNIQUEMENT la phase "starting" — ce n'est pas une
+# période de récupération après "unhealthy".
+#
+# Voir grav-runtime README.md "Healthcheck" : la limite assumée du
+# HEALTHCHECK natif est documentée là, le contrôle HTTP ci-dessous est ce
+# que le runtime attend du rôle de déploiement.
 
 - name: "Attendre le verdict de santé Docker puis vérifier que le site répond"
   block:
@@ -14,10 +21,10 @@
         cmd: "docker inspect --format='{{ '{{' }}.State.Health.Status{{ '}}' }}' {{ grav_container_name }}"
       register: _grav_health_status
       changed_when: false
-      # On sort de la boucle dès que Docker cesse de répondre "starting".
-      # Tant que le conteneur est légitimement en démarrage (start_period),
-      # on continue d'attendre — pas de faux négatif prématuré (la fenêtre
-      # retries × delay est validée >= 120 s dans tasks/assert.yml).
+      # Sortie de boucle sur un verdict définitif. "starting" ne satisfait
+      # pas la condition -> on retente (pas de faux négatif pendant le
+      # start_period). "unhealthy" la satisfait -> on sort, et l'assert
+      # suivant échoue immédiatement (pas d'attente supplémentaire).
       until: _grav_health_status.stdout | trim in ['healthy', 'unhealthy']
       retries: "{{ grav_deploy_wait_retries }}"
       delay: "{{ grav_deploy_wait_delay }}"
@@ -41,6 +48,9 @@
       until: grav_site_check.status | default(0) == grav_site_check_status
       retries: "{{ grav_site_check_retries }}"
       delay: "{{ grav_site_check_delay }}"
+
+    - name: "Succès : retirer un éventuel diagnostic d'échec obsolète"
+      ansible.builtin.import_tasks: clear_failure_diagnostic.yml
 
   rescue:
     - name: "Retenir le dernier statut de santé connu"
