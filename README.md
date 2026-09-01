@@ -201,7 +201,7 @@ exécution (`tasks/assert.yml`).
 | `grav_admin_fullname` / `_title` / `_language` | `""` | Optionnels, transmis au runtime |
 | `grav_admin_type` | `""` | `admin` / `api` / `both` — vide laisse le runtime décider (`both`) |
 | `grav_timezone` | `""` | `date.timezone` PHP |
-| `grav_extra_environment` | `{}` | Variables d'environnement additionnelles, transmises telles quelles |
+| `grav_extra_environment` | `{}` | Variables d'environnement additionnelles — clés validées (`^GRAV_[A-Z0-9_]+$`), ne peuvent pas écraser une variable déjà gérée par le rôle |
 | `grav_healthcheck_interval` / `_timeout` / `_start_period` / `_retries` | `30s` / `3s` / `10s` / `3` | Miroir du `HEALTHCHECK` de l'image, ajustable sans reconstruire |
 | `grav_deploy_wait_retries` / `_delay` | `30` / `2` | Attente côté Ansible du statut `healthy` |
 | `grav_site_check_host` | `127.0.0.1` | Adresse de la vérification HTTP — **distincte** de `grav_bind_address` (qui peut valoir `0.0.0.0`, non joignable comme destination) |

@@ -191,6 +191,37 @@
       README.md "Contrat avec grav-runtime".
     quiet: true
 
+# grav_extra_environment (contrat v1.0.1 §6.5) : échappatoire générique vers
+# de futures variables grav-runtime. Ses clés sont validées et ne peuvent
+# jamais écraser silencieusement une variable que le rôle gère déjà
+# explicitement (sinon un GRAV_ADMIN_USER glissé ici court-circuiterait la
+# politique tri-state ci-dessus sans jamais passer par assert.yml).
+- name: "Lister les clés déjà gérées explicitement par le rôle"
+  ansible.builtin.set_fact:
+    _grav_reserved_env_keys:
+      - GRAV_ADMIN_USER
+      - GRAV_ADMIN_PASSWORD
+      - GRAV_ADMIN_EMAIL
+      - GRAV_ADMIN_FULLNAME
+      - GRAV_ADMIN_TITLE
+      - GRAV_ADMIN_LANGUAGE
+      - GRAV_ADMIN_TYPE
+      - GRAV_TIMEZONE
+
+- name: "Valider les clés de grav_extra_environment"
+  ansible.builtin.assert:
+    that:
+      - item is match('^GRAV_[A-Z0-9_]+$')
+      - item not in _grav_reserved_env_keys
+    fail_msg: >-
+      Clé grav_extra_environment="{{ item }}" invalide : doit correspondre à
+      ^GRAV_[A-Z0-9_]+$ et ne peut pas écraser une variable déjà gérée
+      explicitement par le rôle ({{ _grav_reserved_env_keys | join(', ') }}).
+    quiet: true
+  loop: "{{ grav_extra_environment.keys() | list }}"
+  loop_control:
+    label: "{{ item }}"
+
 # Rassemble toutes les valeurs qui finissent dans grav.env (voir
 # templates/grav.env.j2) : même en format `raw`, une ligne = une variable —
 # un retour à la ligne dans une valeur couperait/corromprait le fichier.

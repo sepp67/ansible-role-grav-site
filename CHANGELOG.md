@@ -50,6 +50,9 @@ découpée en `Ajouté` / `Modifié` / `Déprécié` / `Supprimé` / `Corrigé` 
   (`registry.example.net:5000/projet-grav`).
 - **Ajouté** — `grav_admin_type` (`''`/`admin`/`api`/`both`, défaut `''` = le runtime
   choisit `both`), émise dans `grav.env` comme `GRAV_ADMIN_TYPE` si non vide.
+- **Modifié** — les clés de `grav_extra_environment` sont désormais validées
+  (`^GRAV_[A-Z0-9_]+$`) et ne peuvent plus écraser silencieusement une variable déjà
+  gérée par le rôle (`GRAV_ADMIN_*`, `GRAV_TIMEZONE`).
 
 ### À venir (Lots 4–9, changements d'interface — `2.0.0`)
 

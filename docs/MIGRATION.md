@@ -201,3 +201,18 @@ Nouvelle variable optionnelle, **additive** : `""` (défaut, le runtime choisit 
 `"admin"`, `"api"` ou `"both"`. Aucune action requise si vous ne l'utilisiez pas déjà
 via `grav_extra_environment` (auquel cas, migrez vers `grav_admin_type`, plus lisible
 et désormais validée).
+
+---
+
+## 9. `grav_extra_environment` : clés validées (Lot 3 — appliqué)
+
+Avant : seules les valeurs étaient contrôlées (interdiction des retours à la ligne).
+
+Depuis ce lot : les **clés** sont validées — motif `^GRAV_[A-Z0-9_]+$`, et une clé ne
+peut plus écraser silencieusement une variable déjà gérée explicitement par le rôle
+(`GRAV_ADMIN_USER`, `_PASSWORD`, `_EMAIL`, `_FULLNAME`, `_TITLE`, `_LANGUAGE`, `_TYPE`,
+`GRAV_TIMEZONE`).
+
+**Action** : si vous utilisiez une clé en minuscules, sans préfixe `GRAV_`, ou l'une
+des clés ci-dessus, renommez-la ou passez par la variable de première classe
+correspondante.
