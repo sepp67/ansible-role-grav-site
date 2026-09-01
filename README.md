@@ -257,8 +257,11 @@ ansible-vault encrypt <votre-inventaire>/group_vars/grav_servers/vault.yml
 
 ## Contrat réseau
 
-`grav_bind_address` est **obligatoire** (aucun défaut) : validé en forme avant
-toute mutation (`tasks/assert.yml`). Trois usages :
+`grav_bind_address` est **obligatoire** (aucun défaut). Validation avant toute
+mutation (`tasks/assert.yml`) : IPv4 littérale **stricte** (chaque octet 0–255),
+`0.0.0.0` / `::`, ou toute valeur contenant `:` (**pré-contrôle IPv6
+permissif** — la validation IPv6 complète et le rendu Docker avec crochets
+arrivent au Lot 5). Un nom d'hôte simple est refusé. Trois usages :
 
 ```yaml
 grav_bind_address: 127.0.0.1     # usage strictement local
@@ -336,8 +339,12 @@ Ce rôle s'appuie sur le contrat de `grav-runtime` sans le remettre en cause :
   premier compte **si et seulement si** `GRAV_ADMIN_USER` / `_PASSWORD` / `_EMAIL`
   sont toutes fournies **et** que le volume `accounts` est vide. Un état partiel
   (1 ou 2 sur 3) bloque le démarrage du conteneur.
-- `GRAV_ADMIN_TYPE` (`admin` / `api` / `both`, défaut runtime `both`) contrôle les
-  permissions du compte bootstrapé — `grav_admin_type`, optionnel.
+- `GRAV_ADMIN_TYPE` (`admin` / `api` / `both`, défaut runtime `both`) choisit l'arbre
+  de permissions admin du compte bootstrapé (`grav_admin_type`, optionnel). C'est le
+  prompt « Admin type » de `bin/plugin login new-user` — **distinct** du prompt
+  « Permissions » (`admin` / `site` / `admin+site`), que `grav-runtime` fixe toujours
+  à `admin+site` et que le rôle n'expose pas. Toute autre valeur que `admin`/`api`/
+  `both` (ex. `site`) fait échouer le démarrage du conteneur.
 - 4 répertoires persistants montables séparément (`user/pages`, `user/accounts`,
   `user/data`, `user/images`), initialisés par le runtime depuis son seed interne,
   par sous-répertoire, uniquement si vides.

@@ -98,7 +98,13 @@
       "Contrat réseau".
     quiet: true
 
-- name: "Valider la forme de grav_bind_address"
+# Forme de grav_bind_address. IPv4 : validation stricte (chaque octet
+# 0-255). IPv6 : PRÉ-CONTRÔLE PERMISSIF seulement — toute chaîne contenant
+# ":" passe (une IPv6 littérale complète n'est PAS validée ici). La
+# validation IPv6 réelle et le rendu Docker avec crochets ("[::]:port:80")
+# appartiennent au Lot 5. Cette assertion garantit surtout : non vide, et
+# pas un nom d'hôte simple (rejeté car sans "." ni ":").
+- name: "Valider la forme de grav_bind_address (IPv4 stricte, IPv6 pré-contrôle permissif)"
   ansible.builtin.assert:
     that:
       - >-
@@ -107,10 +113,9 @@
         or ':' in grav_bind_address
     fail_msg: >-
       grav_bind_address="{{ grav_bind_address }}" invalide : doit être une
-      adresse IPv4 littérale valide, une adresse IPv6 littérale, ou
-      "0.0.0.0"/"::" — jamais un nom d'hôte. La validation IPv6 reste
-      volontairement permissive à ce stade (toute chaîne contenant ":") ; le
-      rendu Docker (crochets) et les tests dédiés arrivent au Lot 5.
+      adresse IPv4 littérale valide, "0.0.0.0"/"::", ou une valeur contenant
+      ":" (pré-contrôle IPv6 permissif — la validation IPv6 complète et le
+      rendu Docker arrivent au Lot 5). Un nom d'hôte simple est refusé.
     quiet: true
 
 - name: "Valider grav_healthcheck_retries et grav_deploy_wait_retries"

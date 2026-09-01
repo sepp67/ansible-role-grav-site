@@ -77,14 +77,26 @@
       - label: "grav_bind_address = adresse LAN"
         expect_fail: false
         overrides: {grav_bind_address: "192.168.1.10"}
-      - label: "grav_bind_address = IPv6 littérale"
+      - label: "grav_bind_address = ::1 (pré-contrôle IPv6 permissif — accepté au Lot 3)"
         expect_fail: false
         overrides: {grav_bind_address: "::1"}
 
       # --- grav_admin_type (Lot 3) ---
-      - label: "grav_admin_type invalide"
+      # Contrat vérifié dans grav-runtime docker/bootstrap-admin.sh:62-69 :
+      # seules '', admin, api, both. "site" appartient au prompt "Permissions"
+      # (fixé à admin+site par le runtime), PAS au prompt "Admin type".
+      - label: "grav_admin_type invalide (superadmin)"
         expect_fail: true
         overrides: {grav_admin_type: "superadmin"}
+      - label: "grav_admin_type = site (valeur du mauvais prompt — refusée)"
+        expect_fail: true
+        overrides: {grav_admin_type: "site"}
+      - label: "grav_admin_type = admin"
+        expect_fail: false
+        overrides: {grav_admin_type: "admin"}
+      - label: "grav_admin_type = api"
+        expect_fail: false
+        overrides: {grav_admin_type: "api"}
       - label: "grav_admin_type = both"
         expect_fail: false
         overrides: {grav_admin_type: "both"}

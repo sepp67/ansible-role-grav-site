@@ -38,21 +38,31 @@ découpée en `Ajouté` / `Modifié` / `Déprécié` / `Supprimé` / `Corrigé` 
 
 ### Interface et validations (Lot 3)
 
-- **Modifié** — `grav_bind_address` est désormais **obligatoire** (plus de défaut
-  `127.0.0.1`) ; validée en forme avant toute mutation. Voir README.md « Contrat
-  réseau ». Tous les appelants internes au dépôt la fournissaient déjà depuis le Lot 1.
+#### Ruptures d'interface — `2.0.0` (voir [`docs/MIGRATION.md`](docs/MIGRATION.md))
+
+- **RUPTURE** — `grav_bind_address` est désormais **obligatoire** (plus de défaut
+  `127.0.0.1`) ; validée en forme (IPv4 stricte, `0.0.0.0`/`::`, pré-contrôle IPv6
+  permissif) avant toute mutation. Voir README.md « Contrat réseau ». Un appelant
+  qui n'en fournissait pas échoue explicitement. Tous les appelants internes au
+  dépôt la fournissaient déjà depuis le Lot 1.
+- **RUPTURE** — validation de `grav_image` durcie : refuse un tag final ou un digest
+  incorporés (à mettre dans `grav_version`, ou `grav_digest` au Lot 4) ; le port d'un
+  registre privé (`registry.example.net:5000/projet-grav`) reste autorisé.
+- **RUPTURE** — les **clés** de `grav_extra_environment` sont désormais validées
+  (`^GRAV_[A-Z0-9_]+$`) et ne peuvent plus écraser une variable déjà gérée par le
+  rôle (`GRAV_ADMIN_USER`, `_PASSWORD`, `_EMAIL`, `_FULLNAME`, `_TITLE`, `_LANGUAGE`,
+  `_TYPE`, `GRAV_TIMEZONE`). Une clé en minuscules, sans préfixe `GRAV_`, ou réservée,
+  était acceptée avant.
+
+#### Additifs et dépréciations
+
+- **Ajouté** — `grav_admin_type` (`''`/`admin`/`api`/`both`, défaut `''` = le runtime
+  choisit `both` ; voir `grav-runtime` `docker/bootstrap-admin.sh` lignes 62-69),
+  émise dans `grav.env` comme `GRAV_ADMIN_TYPE` si non vide.
 - **Déprécié** — la surcharge directe de `grav_pages_directory`, `grav_accounts_directory`,
   `grav_data_directory`, `grav_images_directory`, `grav_secret_directory` : toujours
   acceptée et honorée, mais émet un avertissement `[DEPRECATED]` si la valeur diffère
   du chemin normalement dérivé de `grav_base_directory`. Retrait éventuel en `3.0.0`.
-- **Modifié** — validation de `grav_image` durcie : refuse un tag final ou un digest
-  incorporés, autorise explicitement le port d'un registre privé
-  (`registry.example.net:5000/projet-grav`).
-- **Ajouté** — `grav_admin_type` (`''`/`admin`/`api`/`both`, défaut `''` = le runtime
-  choisit `both`), émise dans `grav.env` comme `GRAV_ADMIN_TYPE` si non vide.
-- **Modifié** — les clés de `grav_extra_environment` sont désormais validées
-  (`^GRAV_[A-Z0-9_]+$`) et ne peuvent plus écraser silencieusement une variable déjà
-  gérée par le rôle (`GRAV_ADMIN_*`, `GRAV_TIMEZONE`).
 - **Ajouté** — `tests/test_assertions.yml` (T01) : ~25 scénarios valides/invalides
   rejouant uniquement `tasks/assert.yml`, sans Docker. Intégré à la CI
   (`static-checks`).

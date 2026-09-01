@@ -16,6 +16,18 @@ roles:
     version: "v1.0.1"
 ```
 
+### Résumé des ruptures d'interface `2.0.0`
+
+| # | Rupture | Lot | Action minimale |
+|---|---|---|---|
+| §2 | `grav_bind_address` **obligatoire** (plus de défaut) | 3 (appliqué) | Ajouter `grav_bind_address` à votre profil |
+| §7 | `grav_image` : tag ou digest incorporé **refusé** | 3 (appliqué) | Déplacer le tag vers `grav_version` |
+| §9 | `grav_extra_environment` : **clés validées** (`^GRAV_[A-Z0-9_]+$`, pas de clé réservée) | 3 (appliqué) | Renommer/retirer les clés non conformes |
+| §3 | Politique de pull : `always` → `missing` | 4 | `grav_force_pull: true` pour retrouver l'ancien comportement |
+
+Les dépréciations (§5, sans échec) et les ajouts (§4 `grav_digest`, §8 `grav_admin_type`)
+ne sont pas des ruptures.
+
 ---
 
 ## 1. Retrait de `inventories/production/` (déjà effectif sur `main`)
@@ -204,15 +216,20 @@ et désormais validée).
 
 ---
 
-## 9. `grav_extra_environment` : clés validées (Lot 3 — appliqué)
+## 9. `grav_extra_environment` : clés validées (Lot 3 — appliqué) — **RUPTURE `2.0.0`**
 
-Avant : seules les valeurs étaient contrôlées (interdiction des retours à la ligne).
+Avant : seules les valeurs étaient contrôlées (interdiction des retours à la ligne) ;
+n'importe quelle clé était acceptée.
 
 Depuis ce lot : les **clés** sont validées — motif `^GRAV_[A-Z0-9_]+$`, et une clé ne
-peut plus écraser silencieusement une variable déjà gérée explicitement par le rôle
-(`GRAV_ADMIN_USER`, `_PASSWORD`, `_EMAIL`, `_FULLNAME`, `_TITLE`, `_LANGUAGE`, `_TYPE`,
-`GRAV_TIMEZONE`).
+peut plus écraser une variable déjà gérée explicitement par le rôle (`GRAV_ADMIN_USER`,
+`_PASSWORD`, `_EMAIL`, `_FULLNAME`, `_TITLE`, `_LANGUAGE`, `_TYPE`, `GRAV_TIMEZONE` —
+la liste complète des clés que le rôle émet lui-même dans `grav.env`).
 
-**Action** : si vous utilisiez une clé en minuscules, sans préfixe `GRAV_`, ou l'une
-des clés ci-dessus, renommez-la ou passez par la variable de première classe
-correspondante.
+C'est un **changement d'interface incompatible** : une configuration utilisant une clé
+en minuscules, sans préfixe `GRAV_`, ou l'une des clés réservées, **échouera désormais
+à la validation, avant toute mutation**.
+
+**Action** : renommez la clé (préfixe `GRAV_`, majuscules), ou — si elle correspond à
+une variable de première classe (`grav_admin_type`, `grav_timezone`, `grav_admin_*`) —
+utilisez cette variable directement.
