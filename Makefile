@@ -11,15 +11,18 @@
 .PHONY: dependencies lint preflight check deploy stop restart vault-edit vault-view
 
 ARGS ?=
+# Chemin du Vault, à surcharger pour votre inventaire :
+#   make vault-edit VAULT=inventories/mon-site/group_vars/grav_servers/vault.yml
+VAULT ?= inventories/example/group_vars/grav_servers/vault.yml
 
 dependencies:
 	ansible-galaxy collection install -r requirements.yml
 
 lint:
-	# playbooks/ et inventories/ passés explicitement : ansible-lint ne les
-	# découvre pas automatiquement dans un dépôt qui EST un rôle (constaté en
-	# test — tasks/ et tests/ sont, eux, découverts par défaut).
-	ansible-lint . playbooks/ inventories/
+	# playbooks/, inventories/ et examples/ passés explicitement : ansible-lint
+	# ne les découvre pas automatiquement dans un dépôt qui EST un rôle
+	# (tasks/ et tests/ sont, eux, découverts par défaut).
+	ansible-lint . playbooks/ inventories/ examples/
 
 # Vérifications préalables non destructives (voir README.md "Préflight") :
 # connectivité SSH, become, architecture, registre GHCR depuis la cible, et
@@ -32,8 +35,8 @@ preflight:
 	ansible grav_servers -b -m command -a "whoami" $(ARGS)
 	ansible grav_servers -m setup -a "filter=ansible_architecture" $(ARGS)
 	ansible grav_servers -m uri -a "url=https://ghcr.io/v2/ status_code=200,401" $(ARGS)
-	@test -f inventories/production/group_vars/grav_servers/vault.yml || \
-		(echo "Absent : inventories/production/group_vars/grav_servers/vault.yml — voir README 'Créer et chiffrer le Vault'." && exit 1)
+	@test -f "$(VAULT)" || \
+		(echo "Absent : $(VAULT) — voir README.md « Créer et chiffrer le Vault » (surchargez avec VAULT=…)." && exit 1)
 
 check:
 	ansible-playbook playbooks/check.yml $(ARGS)
@@ -48,7 +51,7 @@ restart:
 	ansible-playbook playbooks/restart.yml $(ARGS)
 
 vault-edit:
-	ansible-vault edit inventories/production/group_vars/grav_servers/vault.yml
+	ansible-vault edit "$(VAULT)"
 
 vault-view:
-	ansible-vault view inventories/production/group_vars/grav_servers/vault.yml
+	ansible-vault view "$(VAULT)"
