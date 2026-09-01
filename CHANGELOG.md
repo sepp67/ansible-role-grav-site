@@ -36,21 +36,25 @@ découpée en `Ajouté` / `Modifié` / `Déprécié` / `Supprimé` / `Corrigé` 
 - **Modifié** — CI et `Makefile` référencent `inventories/example/` ; les cibles
   `vault-*` / `preflight` du Makefile sont paramétrées par `VAULT` / `ARGS`.
 
-### À venir (Lots 3–9, changements d'interface — `2.0.0`)
+### Interface et validations (Lot 3)
 
-- `grav_bind_address` deviendra **obligatoire** (sans valeur par défaut).
-- Ajout de `grav_digest` (épinglage immuable optionnel) et `grav_admin_type`.
+- **Modifié** — `grav_bind_address` est désormais **obligatoire** (plus de défaut
+  `127.0.0.1`) ; validée en forme avant toute mutation. Voir README.md « Contrat
+  réseau ». Tous les appelants internes au dépôt la fournissaient déjà depuis le Lot 1.
+
+### À venir (Lots 4–9, changements d'interface — `2.0.0`)
+
+- Ajout de `grav_digest` (épinglage immuable optionnel) et de la référence Docker
+  effective (`image:version` ou `image@digest`) — différé au Lot 4.
 - Politique de pull par défaut : `missing` (au lieu de `always`) + `grav_force_pull`.
-- Validation de forme de `grav_image` (refus d'un tag/digest incorporé, port de
-  registre autorisé) et des clés de `grav_extra_environment`.
-- Dépréciation de la surcharge directe des chemins dérivés (`grav_*_directory`).
 - Garde contre une instance Grav laissée non initialisée (volume `accounts` vide sans
-  identifiants).
+  identifiants) — Lot 6.
 - Fenêtre d'attente du healthcheck cohérente avec l'état Docker `starting` ;
-  adresse du contrôle HTTP dérivée de `grav_bind_address`.
+  adresse du contrôle HTTP dérivée de `grav_bind_address` ; crochets IPv6 dans le
+  rendu Docker Compose — Lot 5.
 - Traçabilité structurée (`declared_version` / `digest` / `effective_reference` /
-  `deployed_at`) ; fonctionnement sans `gather_facts`.
-- Couverture Molecule de l'installation de Docker.
+  `deployed_at`) ; fonctionnement sans `gather_facts` — Lot 4.
+- Couverture Molecule de l'installation de Docker — Lot 7.
 
 ## [1.0.1] — 2026-07-25
 

@@ -25,10 +25,11 @@ publie sur Internet des instances déjà joignables sur le réseau local, sans d
 de ce dépôt ni de `grav-sites-ops`.
 
 > **Évolution vers `v2.0.0`** — ce rôle est en cours de refonte selon un contrat
-> architectural approuvé. Certains changements d'interface sont prévus (dont
-> `grav_bind_address` obligatoire, support d'un digest, politique de pull `missing`).
-> Voir [`CHANGELOG.md`](CHANGELOG.md) et [`docs/MIGRATION.md`](docs/MIGRATION.md).
-> Ce README décrit le comportement **actuel** du rôle.
+> architectural approuvé. `grav_bind_address` est déjà obligatoire (voir
+> "Contrat réseau"). Restent à venir : support d'un digest, politique de pull
+> `missing`. Voir [`CHANGELOG.md`](CHANGELOG.md) et
+> [`docs/MIGRATION.md`](docs/MIGRATION.md). Ce README décrit le comportement
+> **actuel** du rôle.
 
 ---
 
@@ -185,7 +186,7 @@ exécution (`tasks/assert.yml`).
 | `grav_image` | `""` (obligatoire) | Dépôt d'image, sans tag ni digest (ex. `ghcr.io/sepp67/projet-gites`) |
 | `grav_version` | `""` (obligatoire) | Tag de version — jamais `"latest"` |
 | `grav_container_name` | `grav-site` | Nom du conteneur/service — validé (`^[A-Za-z0-9][A-Za-z0-9._-]*$`, ni `..` `/` `:`) |
-| `grav_bind_address` | `127.0.0.1` | Interface d'écoute de l'hôte (devient **obligatoire** en `v2.0.0`) |
+| `grav_bind_address` | *(aucun — obligatoire)* | Adresse d'écoute de l'hôte — voir "Contrat réseau" |
 | `grav_http_port` | `8080` | Port hôte publié vers le port 80 du conteneur — validé (1–65535) |
 | `grav_admin_user` / `grav_admin_password` / `grav_admin_email` | `""` | Bootstrap du premier compte — **les trois ou aucune** (voir "Contrat avec `grav-runtime`") |
 | `grav_secrets` | `[]` | Fichiers secrets à monter en lecture seule (voir "Stratégie des secrets") |
@@ -246,6 +247,36 @@ cp <votre-inventaire>/group_vars/grav_servers/vault.yml.example \
    <votre-inventaire>/group_vars/grav_servers/vault.yml
 ansible-vault encrypt <votre-inventaire>/group_vars/grav_servers/vault.yml
 ```
+
+---
+
+## Contrat réseau
+
+`grav_bind_address` est **obligatoire** (aucun défaut) : validé en forme avant
+toute mutation (`tasks/assert.yml`). Trois usages :
+
+```yaml
+grav_bind_address: 127.0.0.1     # usage strictement local
+grav_bind_address: 192.168.1.10  # VM accessible sur le LAN (cas normal)
+grav_bind_address: 0.0.0.0       # toutes les interfaces, choix assumé
+```
+
+`127.0.0.1` ne convient pas si un reverse proxy tourne sur une autre VM : il
+ne pourrait pas joindre l'instance — utilisez l'adresse LAN explicite.
+
+| Élément | Responsable |
+|---|---|
+| Construction de la section Compose `ports:` | ce rôle |
+| Valeur de l'adresse et du port | l'appelant (ce dépôt en autonome, `grav-sites-ops` en mode cible) |
+| Domaine public, TLS, route Caddy | `control-repository`, indépendamment |
+| Firewall et segmentation réseau | couche infrastructure, hors de ce rôle |
+
+Le rôle ne configure pas le firewall : un accès direct à l'endpoint HTTP du
+LAN contourne la terminaison TLS d'un éventuel reverse proxy.
+
+`grav_site_check_host` (adresse du contrôle HTTP) reste, dans ce lot, une
+variable indépendante à valeur par défaut `127.0.0.1` — sa dérivation
+automatique depuis `grav_bind_address` arrive au Lot 5.
 
 ---
 

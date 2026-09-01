@@ -96,11 +96,11 @@ ansible-playbook -i inventories/mon-site/hosts.yml playbooks/deploy.yml --ask-va
 
 ---
 
-## 2. `grav_bind_address` deviendra obligatoire (Lot 3)
+## 2. `grav_bind_address` est désormais obligatoire (Lot 3 — appliqué)
 
-Aujourd'hui : `grav_bind_address` a un défaut de `127.0.0.1`.
+Avant : `grav_bind_address` avait un défaut de `127.0.0.1`.
 
-En `2.0.0` : **aucun défaut**. Vous devrez fournir explicitement l'adresse d'écoute :
+Depuis ce lot : **aucun défaut**. Vous devez fournir explicitement l'adresse d'écoute :
 
 | Contexte | Valeur |
 |---|---|
