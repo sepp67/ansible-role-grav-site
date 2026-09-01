@@ -1,0 +1,28 @@
+---
+# Playbook interne appelé en SOUS-PROCESSUS par tasks/t16_*.yml, afin de
+# capturer la sortie complète d'un déploiement et prouver l'absence de
+# secret. Rien de spécifique au test ici : il ne fait qu'invoquer le rôle.
+
+- name: "Déploiement (sous-processus, pour capture de sortie)"
+  hosts: localhost
+  connection: local
+  gather_facts: true
+
+  tasks:
+    - name: "Déployer via le rôle grav_site"  # noqa: role-name[path]
+      ansible.builtin.include_role:
+        name: "{{ grav_l7_role }}"
+      vars:
+        grav_manage_docker: false
+        grav_image: "{{ target_image }}"
+        grav_version: "{{ target_version }}"
+        grav_container_name: "{{ target_name }}"
+        grav_base_directory: "{{ target_base }}"
+        grav_bind_address: "127.0.0.1"
+        grav_http_port: "{{ target_port | int }}"
+        grav_admin_user: "{{ target_admin_user }}"
+        grav_admin_password: "{{ target_admin_password }}"
+        grav_admin_email: "{{ target_admin_email }}"
+        grav_site_check_path: "{{ target_check_path | default('/') }}"
+        grav_site_check_retries: "{{ target_check_retries | default(10) | int }}"
+        grav_site_check_delay: 1

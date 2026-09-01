@@ -1,0 +1,157 @@
+---
+# T13 — grav_bind_address : rendu de la section ports du compose + contrôle
+# HTTP réel, pour 127.0.0.1, une IPv4 LAN de l'environnement de test, et
+# 0.0.0.0 (dérivation du contrôle vers 127.0.0.1).
+
+# --- T13a : bind 127.0.0.1 ---
+- name: "T13a — répertoire neuf"
+  ansible.builtin.file:
+    path: /opt/grav-t13a
+    state: absent
+
+- name: "T13a — déployer, bind 127.0.0.1"  # noqa: role-name[path]
+  ansible.builtin.include_role:
+    name: "{{ grav_l7_role }}"
+  vars:
+    grav_manage_docker: false
+    grav_image: "{{ grav_l7_image }}"
+    grav_version: "{{ grav_l7_version }}"
+    grav_container_name: "grav-t13a"
+    grav_base_directory: /opt/grav-t13a
+    grav_bind_address: "127.0.0.1"
+    grav_http_port: 18131
+    grav_site_check_path: "{{ grav_l7_check_path }}"
+    grav_admin_user: "{{ grav_l7_admin_user }}"
+    grav_admin_password: "{{ grav_l7_admin_password }}"
+    grav_admin_email: "{{ grav_l7_admin_email }}"
+
+- name: "T13a — lire le compose rendu"
+  ansible.builtin.slurp:
+    src: /opt/grav-t13a/docker-compose.yml
+  register: _t13a_compose
+
+- name: "T13a — contrôle HTTP direct sur 127.0.0.1"
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:18131/"
+    status_code: [200, 302, 404]
+  register: _t13a_http
+
+- name: "T13a — assertions"
+  ansible.builtin.assert:
+    that:
+      - '"\"127.0.0.1:18131:80\"" in (_t13a_compose.content | b64decode)'
+      - _t13a_http.status in [200, 302, 404]
+    fail_msg: "T13a : ligne ports incorrecte ou pas de réponse HTTP sur 127.0.0.1."
+    success_msg: "T13a OK — ports \"127.0.0.1:18131:80\", HTTP répond."
+    quiet: true
+
+- name: "T13a — teardown"
+  ansible.builtin.include_tasks: _teardown.yml
+  vars:
+    _td_dir: /opt/grav-t13a
+
+# --- T13b : bind sur l'IPv4 non-loopback du conteneur de test (= LAN) ---
+- name: "T13b — déterminer une IPv4 LAN utilisable"
+  ansible.builtin.set_fact:
+    _t13_lan: "{{ ansible_default_ipv4.address | default('') }}"
+
+- name: "T13b — bind sur l'IPv4 LAN (si disponible)"
+  when: _t13_lan | length > 0 and _t13_lan != '127.0.0.1'
+  block:
+    - name: "T13b — répertoire neuf"
+      ansible.builtin.file:
+        path: /opt/grav-t13b
+        state: absent
+
+    - name: "T13b — déployer, bind {{ _t13_lan }}"  # noqa: role-name[path]
+      ansible.builtin.include_role:
+        name: "{{ grav_l7_role }}"
+      vars:
+        grav_manage_docker: false
+        grav_image: "{{ grav_l7_image }}"
+        grav_version: "{{ grav_l7_version }}"
+        grav_container_name: "grav-t13b"
+        grav_base_directory: /opt/grav-t13b
+        grav_bind_address: "{{ _t13_lan }}"
+        grav_http_port: 18132
+        grav_site_check_path: "{{ grav_l7_check_path }}"
+        grav_admin_user: "{{ grav_l7_admin_user }}"
+        grav_admin_password: "{{ grav_l7_admin_password }}"
+        grav_admin_email: "{{ grav_l7_admin_email }}"
+
+    - name: "T13b — lire le compose rendu"
+      ansible.builtin.slurp:
+        src: /opt/grav-t13b/docker-compose.yml
+      register: _t13b_compose
+
+    - name: "T13b — contrôle HTTP sur l'IPv4 LAN"
+      ansible.builtin.uri:
+        url: "http://{{ _t13_lan }}:18132/"
+        status_code: [200, 302, 404]
+      register: _t13b_http
+
+    - name: "T13b — assertions"
+      ansible.builtin.assert:
+        that:
+          - ('"' ~ _t13_lan ~ ':18132:80"') in (_t13b_compose.content | b64decode)
+          - _t13b_http.status in [200, 302, 404]
+        fail_msg: "T13b : ligne ports ou réponse HTTP incorrecte sur l'IPv4 LAN."
+        success_msg: "T13b OK — bind sur l'IPv4 LAN {{ _t13_lan }}, ports et HTTP corrects."
+        quiet: true
+
+    - name: "T13b — teardown"
+      ansible.builtin.include_tasks: _teardown.yml
+      vars:
+        _td_dir: /opt/grav-t13b
+
+- name: "T13b — PARTIAL si aucune IPv4 non-loopback"
+  when: not (_t13_lan | length > 0 and _t13_lan != '127.0.0.1')
+  ansible.builtin.debug:
+    msg: "T13b PARTIAL — aucune IPv4 non-loopback exploitable dans l'environnement de test."
+
+# --- T13c : bind 0.0.0.0 → contrôle dérivé vers 127.0.0.1 ---
+- name: "T13c — répertoire neuf"
+  ansible.builtin.file:
+    path: /opt/grav-t13c
+    state: absent
+
+- name: "T13c — déployer, bind 0.0.0.0"  # noqa: role-name[path]
+  ansible.builtin.include_role:
+    name: "{{ grav_l7_role }}"
+  vars:
+    grav_manage_docker: false
+    grav_image: "{{ grav_l7_image }}"
+    grav_version: "{{ grav_l7_version }}"
+    grav_container_name: "grav-t13c"
+    grav_base_directory: /opt/grav-t13c
+    grav_bind_address: "0.0.0.0"
+    grav_http_port: 18133
+    grav_site_check_path: "{{ grav_l7_check_path }}"
+    grav_admin_user: "{{ grav_l7_admin_user }}"
+    grav_admin_password: "{{ grav_l7_admin_password }}"
+    grav_admin_email: "{{ grav_l7_admin_email }}"
+
+- name: "T13c — lire le compose rendu"
+  ansible.builtin.slurp:
+    src: /opt/grav-t13c/docker-compose.yml
+  register: _t13c_compose
+
+- name: "T13c — contrôle HTTP sur 127.0.0.1 (adresse dérivée de 0.0.0.0)"
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:18133/"
+    status_code: [200, 302, 404]
+  register: _t13c_http
+
+- name: "T13c — assertions"
+  ansible.builtin.assert:
+    that:
+      - '"\"0.0.0.0:18133:80\"" in (_t13c_compose.content | b64decode)'
+      - _t13c_http.status in [200, 302, 404]
+    fail_msg: "T13c : ports 0.0.0.0 incorrect ou contrôle HTTP dérivé (127.0.0.1) en échec."
+    success_msg: "T13c OK — ports \"0.0.0.0:18133:80\", contrôle dérivé vers 127.0.0.1 répond (le rôle a déjà validé le healthcheck)."
+    quiet: true
+
+- name: "T13c — teardown"
+  ansible.builtin.include_tasks: _teardown.yml
+  vars:
+    _td_dir: /opt/grav-t13c

@@ -1,0 +1,40 @@
+---
+- name: "Converge — déploiement fonctionnel : bootstrap, réseau, santé"
+  hosts: all
+  gather_facts: true
+
+  vars:
+    grav_l7_role: "{{ lookup('env', 'MOLECULE_PROJECT_DIRECTORY') }}"
+    grav_l7_image: "ghcr.io/sepp67/grav-runtime"
+    grav_l7_version: "1.0.4"
+    # grav-runtime nu bootstrape un compte admin mais ne fournit AUCUNE page :
+    # "/" répond 404, "/admin" répond 200. Une image applicative réelle
+    # (projet-gites…) garderait le défaut "/".
+    grav_l7_check_path: "/admin"
+    # Identifiants FICTIFS — jamais committés, jamais issus d'un vault.
+    grav_l7_admin_user: "mol-admin"
+    grav_l7_admin_email: "mol-admin@molecule.test"
+
+  tasks:
+    - name: "Générer le mot de passe fictif de test (une seule fois)"
+      ansible.builtin.set_fact:
+        grav_l7_admin_password: "molpw-{{ lookup('ansible.builtin.password', '/dev/null length=24 chars=ascii_letters,digits') }}"
+      no_log: true
+
+    - name: "T09 — bootstrap avec les trois identifiants → fichier de compte réel"
+      ansible.builtin.include_tasks: tasks/t09_bootstrap_creates_account.yml
+
+    - name: "T10 — accounts vide sans identifiants → échec avant docker_compose_v2"
+      ansible.builtin.include_tasks: tasks/t10_no_creds_fails_before_mutation.yml
+
+    - name: "T11 — compte persistant existant → redéploiement sans grav_admin_*"
+      ansible.builtin.include_tasks: tasks/t11_existing_account_not_recreated.yml
+
+    - name: "T13 — grav_bind_address : 127.0.0.1, IPv4 LAN, 0.0.0.0"
+      ansible.builtin.include_tasks: tasks/t13_bind_address.yml
+
+    - name: "T15 — verdict de santé : starting→healthy, et unhealthy"
+      ansible.builtin.include_tasks: tasks/t15_health_verdict.yml
+
+    - name: "T16 — rescue sans secret + cycle de vie de .last_failure.log"
+      ansible.builtin.include_tasks: tasks/t16_rescue_no_secret_and_cleanup.yml

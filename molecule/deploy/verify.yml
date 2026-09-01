@@ -1,0 +1,29 @@
+---
+- name: "Verify — aucune instance de test ne subsiste après converge"
+  hosts: all
+  gather_facts: false
+
+  tasks:
+    - name: "Lister les conteneurs Grav de test encore présents dans le daemon imbriqué"
+      ansible.builtin.command: "docker ps -a --filter name=grav-t --format '{{ '{{' }}.Names{{ '}}' }}'"
+      register: _grav_verify_ps
+      changed_when: false
+
+    - name: "Lister les répertoires d'instance de test résiduels"
+      ansible.builtin.find:
+        paths: /opt
+        patterns: "grav-t*"
+        file_type: directory
+      register: _grav_verify_dirs
+
+    - name: "Assertion : converge a nettoyé toutes ses instances"
+      ansible.builtin.assert:
+        that:
+          - _grav_verify_ps.stdout | trim == ''
+          - _grav_verify_dirs.matched | int == 0
+        fail_msg: >-
+          Des instances de test subsistent — conteneurs :
+          {{ _grav_verify_ps.stdout }} ; répertoires :
+          {{ _grav_verify_dirs.files | map(attribute='path') | list }}
+        success_msg: "Toutes les instances de test T09–T16 ont été nettoyées par converge."
+        quiet: true

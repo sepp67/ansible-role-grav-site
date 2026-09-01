@@ -1,0 +1,120 @@
+---
+- name: "Prepare — Docker-in-Docker + contrôle du contrat grav-runtime"
+  hosts: all
+  gather_facts: true
+
+  vars:
+    _grav_l7_runtime_ref: "ghcr.io/sepp67/grav-runtime"
+    _grav_l7_primary: "1.0.4"          # image principale T09–T18 (imposée)
+    _grav_l7_secondary: "1.0.3"        # complément mise à jour / rollback uniquement
+
+  tasks:
+    # Le daemon Docker IMBRIQUÉ ne peut pas empiler overlayfs sur l'overlayfs
+    # du conteneur de test : on le force en storage-driver "vfs" (plus lent,
+    # mais fiable en imbrication et sans volume supplémentaire à nettoyer).
+    - name: "Créer /etc/docker"
+      ansible.builtin.file:
+        path: /etc/docker
+        state: directory
+        mode: "0755"
+
+    - name: "Forcer le storage-driver vfs pour le daemon imbriqué"
+      ansible.builtin.copy:
+        content: |
+          {
+            "storage-driver": "vfs"
+          }
+        dest: /etc/docker/daemon.json
+        mode: "0644"
+
+    - name: "Installer Docker Engine dans le conteneur de test (tasks/docker.yml)"  # noqa: role-name[path]
+      ansible.builtin.include_role:
+        name: "{{ lookup('env', 'MOLECULE_PROJECT_DIRECTORY') }}"
+        tasks_from: docker
+
+    - name: "Attendre que le daemon Docker imbriqué réponde"
+      ansible.builtin.command: "docker info --format '{{ '{{' }}.Driver{{ '}}' }}'"
+      register: _grav_l7_dind
+      until: _grav_l7_dind.rc == 0
+      retries: 20
+      delay: 2
+      changed_when: false
+
+    - name: "Confirmer le storage-driver vfs"
+      ansible.builtin.assert:
+        that:
+          - _grav_l7_dind.stdout | trim == 'vfs'
+        fail_msg: "Le daemon imbriqué n'utilise pas vfs ({{ _grav_l7_dind.stdout }}) — overlay imbriqué échouera."
+        quiet: true
+
+    - name: "Pré-tirer les images grav-runtime dans le daemon imbriqué"
+      ansible.builtin.command: "docker pull {{ _grav_l7_runtime_ref }}:{{ item }}"
+      loop:
+        - "{{ _grav_l7_primary }}"
+        - "{{ _grav_l7_secondary }}"
+      changed_when: true
+
+    # ---------------------------------------------------------------------
+    # Contrainte 6 — le contrat grav-runtime DOIT être tenu avant T09 :
+    # l'image doit contenir le plugin login, bin/plugin et bootstrap-admin.sh.
+    # Si ce n'est pas le cas : on N'ADAPTE PAS l'image, on NE CONTOURNE PAS
+    # le bootstrap — BLOCKED — GRAV-RUNTIME CONTRACT.
+    # ---------------------------------------------------------------------
+    - name: "Contrat grav-runtime — présence du plugin login (avant T09)"
+      ansible.builtin.command:
+        argv:
+          - docker
+          - run
+          - --rm
+          - --entrypoint
+          - sh
+          - "{{ _grav_l7_runtime_ref }}:{{ _grav_l7_primary }}"
+          - -c
+          - >-
+            test -d /var/www/html/user/plugins/login
+            && test -f /var/www/html/bin/plugin
+            && test -f /bootstrap-admin.sh
+      register: _grav_l7_login_contract
+      changed_when: false
+      failed_when: false
+
+    - name: "BLOCKED — GRAV-RUNTIME CONTRACT"
+      ansible.builtin.fail:
+        msg: >-
+          BLOCKED — GRAV-RUNTIME CONTRACT : l'image
+          {{ _grav_l7_runtime_ref }}:{{ _grav_l7_primary }} ne fournit pas le
+          plugin login (user/plugins/login), bin/plugin ou bootstrap-admin.sh
+          nécessaires au bootstrap administrateur. Corriger grav-runtime — ne
+          pas adapter l'image, ne pas contourner le bootstrap. T09 et T11 ne
+          peuvent pas être exécutés.
+      when: _grav_l7_login_contract.rc != 0
+
+    - name: "Contrat grav-runtime confirmé (plugin login présent)"
+      ansible.builtin.debug:
+        msg: >-
+          {{ _grav_l7_runtime_ref }}:{{ _grav_l7_primary }} contient le plugin
+          login, bin/plugin et bootstrap-admin.sh — bootstrap possible.
+
+    # --- Préparatifs du sous-processus T16 (capture de la sortie Ansible) ---
+    - name: "Installer la collection community.docker dans le conteneur de test"
+      ansible.builtin.command:
+        cmd: "ansible-galaxy collection install 'community.docker:>=5.0.0,<6.0.0'"
+      changed_when: true
+
+    - name: "Copier les répertoires du rôle dans le conteneur (/opt/grav-role)"
+      ansible.builtin.copy:
+        src: "{{ lookup('env', 'MOLECULE_PROJECT_DIRECTORY') }}/{{ item }}"
+        dest: /opt/grav-role/
+        mode: preserve
+      loop:
+        - defaults
+        - tasks
+        - templates
+        - vars
+        - meta
+
+    - name: "Copier le playbook interne T16 (/opt/inner_deploy.yml)"
+      ansible.builtin.copy:
+        src: "{{ lookup('env', 'MOLECULE_SCENARIO_DIRECTORY') }}/files/inner_deploy.yml"
+        dest: /opt/inner_deploy.yml
+        mode: "0644"

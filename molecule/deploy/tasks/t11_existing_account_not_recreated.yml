@@ -1,0 +1,92 @@
+---
+# T11 — un compte persistant existe déjà : un redéploiement SANS grav_admin_*
+# réussit et ne recrée pas le compte. Aucun contenu de fichier de compte
+# n'apparaît dans la sortie.
+
+- name: "T11 — répertoire d'instance neuf"
+  ansible.builtin.file:
+    path: /opt/grav-t11
+    state: absent
+
+- name: "T11 — 1er déploiement AVEC identifiants (crée le compte)"  # noqa: role-name[path]
+  ansible.builtin.include_role:
+    name: "{{ grav_l7_role }}"
+  vars:
+    grav_manage_docker: false
+    grav_image: "{{ grav_l7_image }}"
+    grav_version: "{{ grav_l7_version }}"
+    grav_container_name: "grav-t11"
+    grav_base_directory: /opt/grav-t11
+    grav_bind_address: "127.0.0.1"
+    grav_http_port: 18111
+    grav_site_check_path: "{{ grav_l7_check_path }}"
+    grav_admin_user: "{{ grav_l7_admin_user }}"
+    grav_admin_password: "{{ grav_l7_admin_password }}"
+    grav_admin_email: "{{ grav_l7_admin_email }}"
+
+- name: "T11 — empreinte des comptes AVANT (métadonnées + sha1)"
+  ansible.builtin.find:
+    paths: /opt/grav-t11/data/accounts
+    patterns: ["*.yaml", "*.yml"]
+    file_type: file
+    get_checksum: true
+  register: _t11_before
+  no_log: true
+
+- name: "T11 — inode + mtime du fichier de compte AVANT"
+  ansible.builtin.stat:
+    path: "{{ (_t11_before.files | first).path }}"
+  register: _t11_stat_before
+  no_log: true
+
+- name: "T11 — 2e déploiement SANS aucun grav_admin_*"  # noqa: role-name[path]
+  ansible.builtin.include_role:
+    name: "{{ grav_l7_role }}"
+  vars:
+    grav_manage_docker: false
+    grav_image: "{{ grav_l7_image }}"
+    grav_version: "{{ grav_l7_version }}"
+    grav_container_name: "grav-t11"
+    grav_base_directory: /opt/grav-t11
+    grav_bind_address: "127.0.0.1"
+    grav_http_port: 18111
+    grav_site_check_path: "{{ grav_l7_check_path }}"
+
+- name: "T11 — empreinte des comptes APRÈS"
+  ansible.builtin.find:
+    paths: /opt/grav-t11/data/accounts
+    patterns: ["*.yaml", "*.yml"]
+    file_type: file
+    get_checksum: true
+  register: _t11_after
+  no_log: true
+
+- name: "T11 — inode + mtime du fichier de compte APRÈS"
+  ansible.builtin.stat:
+    path: "{{ (_t11_after.files | first).path }}"
+  register: _t11_stat_after
+  no_log: true
+
+- name: "T11 — assertions : redéploiement réussi, compte inchangé"
+  ansible.builtin.assert:
+    that:
+      # nombre de fichiers de comptes identique — aucun compte supplémentaire
+      - (_t11_before.matched | int) >= 1
+      - (_t11_before.matched | int) == (_t11_after.matched | int)
+      # empreinte du fichier existant identique (contenu inchangé)
+      - (_t11_before.files | map(attribute='checksum') | list | sort)
+        == (_t11_after.files | map(attribute='checksum') | list | sort)
+      # inode + mtime stables (le fichier n'a pas été réécrit)
+      - _t11_stat_before.stat.inode == _t11_stat_after.stat.inode
+      - _t11_stat_before.stat.mtime == _t11_stat_after.stat.mtime
+    fail_msg: "T11 : compte recréé ou modifié lors du redéploiement sans identifiants."
+    success_msg: >-
+      T11 OK — redéploiement sans grav_admin_* réussi ; nombre de fichiers de
+      comptes, empreinte, inode et mtime inchangés.
+    quiet: true
+  no_log: true
+
+- name: "T11 — teardown"
+  ansible.builtin.include_tasks: _teardown.yml
+  vars:
+    _td_dir: /opt/grav-t11

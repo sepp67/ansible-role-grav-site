@@ -1,0 +1,48 @@
+---
+# Scénario molecule "deploy" — T09, T10, T11, T13, T15, T16.
+#
+# Docker-in-Docker : le conteneur de test (Debian 12, privilégié, systemd)
+# reçoit Docker Engine via tasks/docker.yml (prepare.yml), puis le rôle y
+# déploie de vraies instances grav-runtime dans le daemon imbriqué.
+#
+# Une seule plateforme : la logique testée (assert, admin_guard, healthcheck,
+# verify_admin_account, version) est indépendante de la distribution une fois
+# Docker installé (T02/T03 couvrent l'installation par distribution).
+#
+# `molecule destroy` est toujours joué en fin de séquence (y compris sur
+# échec) : aucun conteneur de test ne survit.
+
+role_name_check: 1
+
+driver:
+  name: docker
+
+platforms:
+  - name: grav-l7-deploy-debian12
+    image: geerlingguy/docker-debian12-ansible:latest
+    command: /usr/lib/systemd/systemd
+    privileged: true
+    cgroupns_mode: host
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+    tmpfs:
+      - /run
+      - /run/lock
+    pre_build_image: true
+
+provisioner:
+  name: ansible
+
+dependency:
+  name: galaxy
+  enabled: false
+
+scenario:
+  name: deploy
+  test_sequence:
+    - destroy
+    - create
+    - prepare
+    - converge
+    - verify
+    - destroy

@@ -1,0 +1,55 @@
+---
+# T09 — volume accounts vide + les trois identifiants → un fichier de compte
+# persistant est réellement créé, et le mot de passe est restitué à
+# l'identique au conteneur. Le contenu du fichier de compte n'est jamais lu.
+
+- name: "T09 — répertoire d'instance neuf (accounts vide au départ)"
+  ansible.builtin.file:
+    path: /opt/grav-t09
+    state: absent
+
+- name: "T09 — déployer grav-runtime:1.0.4 avec les trois identifiants"  # noqa: role-name[path]
+  ansible.builtin.include_role:
+    name: "{{ grav_l7_role }}"
+  vars:
+    grav_manage_docker: false
+    grav_image: "{{ grav_l7_image }}"
+    grav_version: "{{ grav_l7_version }}"
+    grav_container_name: "grav-t09"
+    grav_base_directory: /opt/grav-t09
+    grav_bind_address: "127.0.0.1"
+    grav_http_port: 18109
+    grav_site_check_path: "{{ grav_l7_check_path }}"
+    grav_admin_user: "{{ grav_l7_admin_user }}"
+    grav_admin_password: "{{ grav_l7_admin_password }}"
+    grav_admin_email: "{{ grav_l7_admin_email }}"
+
+- name: "T09 — compter les fichiers de compte produits (métadonnées seules)"
+  ansible.builtin.find:
+    paths: /opt/grav-t09/data/accounts
+    patterns: ["*.yaml", "*.yml"]
+    file_type: file
+  register: _t09_accounts
+  no_log: true
+
+- name: "T09 — relire GRAV_ADMIN_PASSWORD dans le conteneur"
+  ansible.builtin.command:
+    cmd: "docker exec grav-t09 printenv GRAV_ADMIN_PASSWORD"
+  register: _t09_pw
+  changed_when: false
+  no_log: true
+
+- name: "T09 — assertions (comparaison masquée)"
+  ansible.builtin.assert:
+    that:
+      - (_t09_accounts.matched | int) >= 1
+      - _t09_pw.stdout == grav_l7_admin_password
+    fail_msg: "T09 : aucun fichier de compte persistant créé, ou mot de passe non restitué."
+    success_msg: "T09 OK — fichier de compte persistant créé, mot de passe restitué à l'identique."
+    quiet: true
+  no_log: true
+
+- name: "T09 — teardown"
+  ansible.builtin.include_tasks: _teardown.yml
+  vars:
+    _td_dir: /opt/grav-t09

@@ -1,0 +1,65 @@
+---
+# T10 — volume accounts vide + AUCUN identifiant → le rôle échoue à
+# admin_guard.yml, AVANT docker_compose_v2 : aucun docker-compose.yml,
+# aucun grav.env, aucun conteneur Grav. Grav n'est jamais démarré, donc
+# jamais laissé non initialisé.
+
+- name: "T10 — répertoire d'instance neuf (accounts restera vide)"
+  ansible.builtin.file:
+    path: /opt/grav-t10
+    state: absent
+
+- name: "T10 — tentative de déploiement sans aucun identifiant"
+  block:
+    - name: "T10 — include role (attendu : échec à admin_guard)"  # noqa: role-name[path]
+      ansible.builtin.include_role:
+        name: "{{ grav_l7_role }}"
+      vars:
+        grav_manage_docker: false
+        grav_image: "{{ grav_l7_image }}"
+        grav_version: "{{ grav_l7_version }}"
+        grav_container_name: "grav-t10"
+        grav_base_directory: /opt/grav-t10
+        grav_bind_address: "127.0.0.1"
+        grav_http_port: 18110
+
+    - name: "T10 — le rôle n'a PAS échoué (anomalie)"
+      ansible.builtin.set_fact:
+        _t10_failed: false
+  rescue:
+    - name: "T10 — échec observé (attendu)"
+      ansible.builtin.set_fact:
+        _t10_failed: true
+
+- name: "T10 — état des fichiers d'instance après la tentative"
+  ansible.builtin.stat:
+    path: "/opt/grav-t10/{{ item }}"
+  register: _t10_files
+  loop:
+    - docker-compose.yml
+    - grav.env
+
+- name: "T10 — aucun conteneur Grav pour ce projet"
+  ansible.builtin.command: "docker ps -a --filter name=grav-t10 --format '{{ '{{' }}.Names{{ '}}' }}'"
+  register: _t10_ps
+  changed_when: false
+
+- name: "T10 — assertions : échec avant mutation, rien de créé"
+  ansible.builtin.assert:
+    that:
+      - _t10_failed | bool
+      - not _t10_files.results[0].stat.exists
+      - not _t10_files.results[1].stat.exists
+      - _t10_ps.stdout | trim == ''
+    fail_msg: >-
+      T10 : le rôle n'a pas échoué, ou un docker-compose.yml / grav.env /
+      conteneur Grav a été créé sans identifiants.
+    success_msg: >-
+      T10 OK — échec avant docker_compose_v2 ; aucun compose, aucun grav.env,
+      aucun conteneur ; Grav jamais démarré.
+    quiet: true
+
+- name: "T10 — teardown (répertoire éventuel)"
+  ansible.builtin.include_tasks: _teardown.yml
+  vars:
+    _td_dir: /opt/grav-t10

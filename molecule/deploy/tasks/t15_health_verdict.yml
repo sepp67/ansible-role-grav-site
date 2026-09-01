@@ -1,0 +1,120 @@
+---
+# T15 — sémantique du verdict de santé.
+#   positif : starting → healthy, le rôle attend correctement.
+#   négatif : unhealthy → échec immédiat (sans consommer les 300 s).
+
+# --- T15 positif ---
+- name: "T15p — répertoire neuf"
+  ansible.builtin.file:
+    path: /opt/grav-t15p
+    state: absent
+
+- name: "T15p — déployer grav-runtime:1.0.4 (démarrage normal)"  # noqa: role-name[path]
+  ansible.builtin.include_role:
+    name: "{{ grav_l7_role }}"
+  vars:
+    grav_manage_docker: false
+    grav_image: "{{ grav_l7_image }}"
+    grav_version: "{{ grav_l7_version }}"
+    grav_container_name: "grav-t15p"
+    grav_base_directory: /opt/grav-t15p
+    grav_bind_address: "127.0.0.1"
+    grav_http_port: 18151
+    grav_site_check_path: "{{ grav_l7_check_path }}"
+    grav_admin_user: "{{ grav_l7_admin_user }}"
+    grav_admin_password: "{{ grav_l7_admin_password }}"
+    grav_admin_email: "{{ grav_l7_admin_email }}"
+
+- name: "T15p — état de santé Docker final"
+  ansible.builtin.command: "docker inspect --format '{{ '{{' }}json .State.Health{{ '}}' }}' grav-t15p"
+  register: _t15p_health
+  changed_when: false
+
+- name: "T15p — assertions : verdict healthy atteint proprement"
+  ansible.builtin.assert:
+    that:
+      - (_t15p_health.stdout | from_json).Status == 'healthy'
+      - (_t15p_health.stdout | from_json).FailingStreak | int == 0
+      - (_t15p_health.stdout | from_json).Log | length >= 1
+    fail_msg: "T15p : le conteneur n'a pas atteint 'healthy' proprement."
+    success_msg: "T15p OK — le rôle a attendu le passage starting→healthy sans faux échec."
+    quiet: true
+
+- name: "T15p — teardown"
+  ansible.builtin.include_tasks: _teardown.yml
+  vars:
+    _td_dir: /opt/grav-t15p
+
+# --- T15 négatif : image sans /healthcheck.sh → unhealthy ---
+- name: "T15n — répertoire neuf"
+  ansible.builtin.file:
+    path: /opt/grav-t15n
+    state: absent
+
+- name: "T15n — horodatage de début"
+  ansible.builtin.set_fact:
+    _t15n_t0: "{{ '%s' | strftime }}"
+
+- name: "T15n — déployer une image SANS /healthcheck.sh (nginx:alpine)"
+  block:
+    - name: "T15n — include role (attendu : échec au verdict unhealthy)"  # noqa: role-name[path]
+      ansible.builtin.include_role:
+        name: "{{ grav_l7_role }}"
+      vars:
+        grav_manage_docker: false
+        grav_image: "docker.io/library/nginx"
+        grav_version: "alpine"
+        grav_container_name: "grav-t15n"
+        grav_base_directory: /opt/grav-t15n
+        grav_bind_address: "127.0.0.1"
+        grav_http_port: 18152
+        # identifiants fictifs : admin_guard doit passer pour atteindre le
+        # healthcheck (c'est LUI qu'on teste ici, pas la garde admin).
+        grav_admin_user: "{{ grav_l7_admin_user }}"
+        grav_admin_password: "{{ grav_l7_admin_password }}"
+        grav_admin_email: "{{ grav_l7_admin_email }}"
+        # healthcheck agressif : verdict unhealthy en ~10 s
+        grav_healthcheck_start_period: "2s"
+        grav_healthcheck_interval: "3s"
+        grav_healthcheck_timeout: "2s"
+        grav_healthcheck_retries: 2
+        # fenêtre d'attente au-dessus du plancher assert (>=120 s) — si le
+        # rôle attendait vraiment 300 s, le test le verrait (assertion de durée)
+        grav_deploy_wait_retries: 60
+        grav_deploy_wait_delay: 5
+    - name: "T15n — le rôle n'a PAS échoué (anomalie)"
+      ansible.builtin.set_fact:
+        _t15n_failed: false
+  rescue:
+    - name: "T15n — échec observé (attendu)"
+      ansible.builtin.set_fact:
+        _t15n_failed: true
+
+- name: "T15n — horodatage de fin"
+  ansible.builtin.set_fact:
+    _t15n_t1: "{{ '%s' | strftime }}"
+
+- name: "T15n — état de santé Docker"
+  ansible.builtin.command: "docker inspect --format '{{ '{{' }}.State.Health.Status{{ '}}' }}' grav-t15n"
+  register: _t15n_health
+  changed_when: false
+  failed_when: false
+
+- name: "T15n — assertions : échec immédiat sur unhealthy, pas d'attente de 300 s"
+  ansible.builtin.assert:
+    that:
+      - _t15n_failed | bool
+      - _t15n_health.stdout | trim == 'unhealthy'
+      - ((_t15n_t1 | int) - (_t15n_t0 | int)) < 120
+    fail_msg: >-
+      T15n : le rôle n'a pas échoué au verdict unhealthy, ou a attendu trop
+      longtemps (durée {{ (_t15n_t1 | int) - (_t15n_t0 | int) }} s).
+    success_msg: >-
+      T15n OK — verdict 'unhealthy' → échec du rôle en
+      {{ (_t15n_t1 | int) - (_t15n_t0 | int) }} s (bien avant la fenêtre de 300 s).
+    quiet: true
+
+- name: "T15n — teardown"
+  ansible.builtin.include_tasks: _teardown.yml
+  vars:
+    _td_dir: /opt/grav-t15n
