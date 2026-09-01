@@ -92,10 +92,16 @@ grav_healthcheck_timeout: "3s"
 grav_healthcheck_start_period: "10s"
 grav_healthcheck_retries: 3
 
-# Attente côté Ansible du statut Docker "healthy" avant de considérer le
-# déploiement comme terminé (voir tasks/healthcheck.yml).
-grav_deploy_wait_retries: 30
-grav_deploy_wait_delay: 2
+# Attente côté Ansible d'un VERDICT de santé Docker définitif ("healthy" ou
+# "unhealthy") avant de conclure — voir tasks/healthcheck.yml. La fenêtre
+# (retries × delay = 60 × 5 = 300 s) doit dépasser la durée au terme de
+# laquelle Docker cesse de répondre "starting" : pire cas avec le
+# healthcheck par défaut = start_period (10s) + interval (30s) × retries
+# (3) ≈ 100 s. tasks/assert.yml impose un plancher explicite de 120 s
+# (plutôt qu'un parsing fragile de "30s"/"1m…"). Marge restante = temps de
+# démarrage applicatif de Grav.
+grav_deploy_wait_retries: 60
+grav_deploy_wait_delay: 5
 
 # /healthz (ci-dessus) est un endpoint technique qui ne passe jamais par
 # Grav lui-même. Le rôle vérifie donc, en plus, qu'une page réelle du site

@@ -41,7 +41,11 @@ de ce dépôt ni de `grav-sites-ops`.
 4. Installe les fichiers secrets fournis par l'appelant (jamais générés).
 5. Génère un `docker-compose.yml` et un `grav.env` génériques.
 6. Récupère l'image demandée et applique l'état voulu au conteneur.
-7. Attend le statut Docker `healthy`, puis vérifie qu'une page réelle du site répond.
+7. Attend un **verdict de santé Docker définitif** (`healthy` ou `unhealthy`, jamais
+   `starting`), exige `healthy`, puis vérifie qu'une page réelle du site répond. En
+   cas d'échec, les derniers logs du conteneur sont écrits dans
+   `{{ grav_base_directory }}/.last_failure.log` (mode `0600`, root, **jamais affichés
+   dans la sortie Ansible**) et le message d'erreur renvoie vers ce fichier.
 8. Enregistre l'état de déploiement (`.deployed_state.yml` structuré,
    `.deployed_version`, `deployed_versions.log` append-only).
 
@@ -224,7 +228,7 @@ nouvelle image derrière un tag mobile).
 | `grav_timezone` | `""` | `date.timezone` PHP |
 | `grav_extra_environment` | `{}` | Variables d'environnement additionnelles — clés validées (`^GRAV_[A-Z0-9_]+$`), ne peuvent pas écraser une variable déjà gérée par le rôle |
 | `grav_healthcheck_interval` / `_timeout` / `_start_period` / `_retries` | `30s` / `3s` / `10s` / `3` | Miroir du `HEALTHCHECK` de l'image, ajustable sans reconstruire |
-| `grav_deploy_wait_retries` / `_delay` | `30` / `2` | Attente côté Ansible du statut `healthy` |
+| `grav_deploy_wait_retries` / `_delay` | `60` / `5` | Attente côté Ansible d'un verdict de santé Docker définitif — fenêtre 300 s (plancher imposé : 120 s > `start_period` + `interval` × `retries`) |
 | `grav_site_check_host` | `""` | Adresse de la vérification HTTP. Vide = **dérivée** de `grav_bind_address` (`0.0.0.0` → `127.0.0.1`, sinon la même). Override possible, sans `:` — voir « Contrat réseau » |
 | `grav_site_check_path` / `_status` | `/` / `200` | Page réelle vérifiée et code attendu |
 | `grav_site_check_retries` / `_delay` / `_timeout` | `10` / `5` / `5` | Attente de la vérification HTTP |

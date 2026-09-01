@@ -133,10 +133,35 @@
     that:
       - grav_healthcheck_retries | int > 0
       - grav_deploy_wait_retries | int > 0
+      - grav_deploy_wait_delay | int > 0
     fail_msg: >-
-      grav_healthcheck_retries ({{ grav_healthcheck_retries }}) et
-      grav_deploy_wait_retries ({{ grav_deploy_wait_retries }}) doivent être
-      des entiers strictement positifs.
+      grav_healthcheck_retries ({{ grav_healthcheck_retries }}),
+      grav_deploy_wait_retries ({{ grav_deploy_wait_retries }}) et
+      grav_deploy_wait_delay ({{ grav_deploy_wait_delay }}) doivent être des
+      entiers strictement positifs.
+    quiet: true
+
+# La fenêtre d'attente Ansible (grav_deploy_wait_retries × _delay) doit
+# dépasser la durée au terme de laquelle Docker rend un verdict de santé
+# DÉFINITIF. Pire cas "starting" -> "unhealthy" avec le healthcheck par
+# défaut : start_period (10s) + interval (30s) × retries (3) ≈ 100 s. On
+# exige un plancher explicite et documenté de 120 s plutôt que de parser
+# des durées libres ("30s", "1m30s"…) — contrat v1.0.1 §7.4. En dessous, la
+# tâche d'attente pourrait échouer alors que le conteneur est encore
+# légitimement "starting" (faux négatif).
+- name: "Vérifier que la fenêtre d'attente Ansible couvre le verdict Docker"
+  ansible.builtin.assert:
+    that:
+      - (grav_deploy_wait_retries | int) * (grav_deploy_wait_delay | int) >= 120
+    fail_msg: >-
+      Fenêtre d'attente insuffisante : grav_deploy_wait_retries
+      ({{ grav_deploy_wait_retries }}) × grav_deploy_wait_delay
+      ({{ grav_deploy_wait_delay }}) =
+      {{ (grav_deploy_wait_retries | int) * (grav_deploy_wait_delay | int) }} s
+      < 120 s. Docker peut rester "starting" jusqu'à ~100 s avec le
+      healthcheck par défaut ; une fenêtre trop courte ferait échouer le
+      déploiement sur un conteneur encore en démarrage. Augmentez
+      grav_deploy_wait_retries ou grav_deploy_wait_delay.
     quiet: true
 
 # grav_site_check_host : vide par défaut (dérivé de grav_bind_address, voir

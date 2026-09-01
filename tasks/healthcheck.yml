@@ -1,21 +1,36 @@
 ---
 # Le HEALTHCHECK Docker natif de l'image (GET /healthz, technique, ne passe
 # jamais par Grav) prouve que Nginx et PHP-FPM sont vivants et reliés. Ce
-# rôle attend ce statut "healthy", puis vérifie en plus qu'une page réelle
+# rôle attend un VERDICT définitif de ce healthcheck ("healthy" ou
+# "unhealthy" — jamais "starting"), puis vérifie en plus qu'une page réelle
 # du site répond — voir grav-runtime README.md "Healthcheck" : la limite
 # assumée du HEALTHCHECK natif est explicitement documentée là, ce second
 # contrôle est ce que le runtime attend du rôle de déploiement.
 
-- name: "Attendre le healthcheck puis vérifier que le site répond"
+- name: "Attendre le verdict de santé Docker puis vérifier que le site répond"
   block:
-    - name: "Attendre que le conteneur soit 'healthy'"
+    - name: "Attendre que Docker rende un verdict de santé (ni 'starting')"
       ansible.builtin.command:
         cmd: "docker inspect --format='{{ '{{' }}.State.Health.Status{{ '}}' }}' {{ grav_container_name }}"
-      register: grav_health_status
+      register: _grav_health_status
       changed_when: false
-      until: grav_health_status.stdout | trim == 'healthy'
+      # On sort de la boucle dès que Docker cesse de répondre "starting".
+      # Tant que le conteneur est légitimement en démarrage (start_period),
+      # on continue d'attendre — pas de faux négatif prématuré (la fenêtre
+      # retries × delay est validée >= 120 s dans tasks/assert.yml).
+      until: _grav_health_status.stdout | trim in ['healthy', 'unhealthy']
       retries: "{{ grav_deploy_wait_retries }}"
       delay: "{{ grav_deploy_wait_delay }}"
+
+    - name: "Exiger que le verdict de santé soit 'healthy'"
+      ansible.builtin.assert:
+        that:
+          - _grav_health_status.stdout | trim == 'healthy'
+        fail_msg: >-
+          Le conteneur {{ grav_container_name }} a été déclaré
+          "{{ _grav_health_status.stdout | trim }}" par Docker (le
+          healthcheck natif /healthz ne passe pas).
+        quiet: true
 
     - name: "Vérifier qu'une page réelle du site répond"
       ansible.builtin.uri:
@@ -28,19 +43,52 @@
       delay: "{{ grav_site_check_delay }}"
 
   rescue:
-    - name: "Récupérer les derniers logs du conteneur pour diagnostic"
+    - name: "Retenir le dernier statut de santé connu"
+      ansible.builtin.set_fact:
+        _grav_last_health: >-
+          {{ (_grav_health_status.stdout | trim)
+             if (_grav_health_status is defined
+                 and (_grav_health_status.stdout | default('') | trim) != '')
+             else '(inconnu)' }}
+
+    # no_log : les logs du conteneur peuvent contenir des traces sensibles
+    # (erreurs de démarrage recopiant l'environnement, bootstrap admin…).
+    # Ils sont capturés puis écrits dans un fichier à accès restreint sur
+    # l'hôte cible — jamais affichés dans la sortie Ansible.
+    - name: "Capturer les derniers logs du conteneur (non affichés)"
       ansible.builtin.command:
-        cmd: "docker logs --tail 100 {{ grav_container_name }}"
-      register: grav_failure_logs
+        cmd: "docker logs --tail 200 {{ grav_container_name }}"
+      register: _grav_failure_logs
       changed_when: false
       failed_when: false
+      no_log: true
 
-    - name: "Échouer proprement avec le contexte du problème"
+    - name: "Écrire les logs de diagnostic dans un fichier à accès restreint"
+      ansible.builtin.copy:
+        content: |
+          # Diagnostic d'échec de déploiement — {{ grav_container_name }}
+          # Référence     : {{ _grav_effective_reference }}
+          # Statut santé  : {{ _grav_last_health }}
+          # Contrôle HTTP : http://{{ _grav_site_check_host }}:{{ grav_http_port }}{{ grav_site_check_path }} (attendu {{ grav_site_check_status }})
+          # --- docker logs --tail 200 ---
+          {{ _grav_failure_logs.stdout | default('(logs indisponibles)') }}
+          {{ _grav_failure_logs.stderr | default('') }}
+        dest: "{{ grav_base_directory }}/.last_failure.log"
+        owner: root
+        group: root
+        mode: "0600"
+      no_log: true
+
+    - name: "Échouer avec un message actionnable (sans divulguer les logs)"
       ansible.builtin.fail:
         msg: >-
-          Le déploiement de {{ grav_image }}:{{ grav_version }} a échoué : le
-          conteneur {{ grav_container_name }} n'est pas devenu "healthy" ou
-          ne répond pas correctement sur {{ grav_site_check_path }}.
-          Derniers logs du conteneur :
-          {{ grav_failure_logs.stdout | default('(indisponibles)') }}
-          {{ grav_failure_logs.stderr | default('') }}
+          Déploiement de {{ _grav_effective_reference }} en échec : le
+          conteneur {{ grav_container_name }} n'a pas atteint l'état
+          "healthy" (dernier statut Docker : {{ _grav_last_health }}) ou la
+          page {{ grav_site_check_path }} n'a pas répondu
+          {{ grav_site_check_status }}. Les 200 dernières lignes de logs du
+          conteneur ont été écrites dans
+          {{ grav_base_directory }}/.last_failure.log (mode 0600, root) sur
+          l'hôte cible : consultez ce fichier puis supprimez-le. Diagnostic
+          complémentaire : « docker ps -a » et
+          « docker inspect {{ grav_container_name }} ».

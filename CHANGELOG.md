@@ -104,6 +104,17 @@ découpée en `Ajouté` / `Modifié` / `Déprécié` / `Supprimé` / `Corrigé` 
   précise → la même ; `0.0.0.0` → `127.0.0.1`), calcul porté par `vars/main.yml`
   (`_grav_site_check_host`). Un override explicite reste possible mais ne peut plus
   contenir `:` (ni IPv6, ni port).
+- **Corrigé** — l'attente du healthcheck (`tasks/healthcheck.yml`) sort désormais de
+  sa boucle sur un **verdict Docker définitif** (`healthy` ou `unhealthy`), plus
+  jamais sur un simple `starting` : un conteneur encore légitimement en démarrage ne
+  produit plus de faux échec. La fenêtre passe à `60 × 5 = 300 s`
+  (`grav_deploy_wait_retries` `30` → `60`, `grav_deploy_wait_delay` `2` → `5`) et
+  `tasks/assert.yml` impose un plancher de `120 s` (> `start_period` + `interval` ×
+  `retries` du healthcheck par défaut).
+- **Corrigé** — chemin d'échec (`rescue`) : les logs du conteneur ne sont plus
+  déversés dans la sortie Ansible. Ils sont capturés avec `no_log` et écrits dans
+  `{{ grav_base_directory }}/.last_failure.log` (mode `0600`, root) ; le message
+  d'erreur, lui, reste lisible et renvoie vers ce fichier.
 
 ### À venir (Lots 6–9, changements d'interface — `2.0.0`)
 

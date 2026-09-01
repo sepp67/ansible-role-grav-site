@@ -313,3 +313,27 @@ utilise `gather_facts: false`.
 **Action** : aucune. Si un script lisait `.deployed_version` en supposant le format
 `image:version`, il fonctionne toujours tant qu'aucun digest n'est utilisé ; sinon,
 lisez plutôt `.deployed_state.yml` (`effective_reference` ou `declared_version`).
+
+---
+
+## 11. Fenêtre d'attente du healthcheck et logs d'échec (Lot 5 — appliqué)
+
+**Verdict de santé.** L'attente (`tasks/healthcheck.yml`) sort de sa boucle sur un
+verdict Docker **définitif** (`healthy` **ou** `unhealthy`), plus sur un simple
+`starting`. Un conteneur encore légitimement en `start_period` ne provoque plus de
+faux échec.
+
+**Nouveaux défauts.** `grav_deploy_wait_retries` : `30` → `60` ; `grav_deploy_wait_delay` :
+`2` → `5` (fenêtre `60 × 5 = 300 s`). `tasks/assert.yml` refuse désormais une fenêtre
+`retries × delay < 120 s` (plancher explicite ; `120 s` couvre le pire cas
+`start_period` + `interval` × `retries` du healthcheck par défaut ≈ `100 s`).
+
+**Logs d'échec.** En cas d'échec, le `rescue` n'imprime plus les logs du conteneur
+dans la sortie Ansible (`no_log`). Les 200 dernières lignes sont écrites dans
+`{{ grav_base_directory }}/.last_failure.log` (mode `0600`, root) sur l'hôte cible ;
+le message d'erreur renvoie vers ce fichier.
+
+**Action** : si vous aviez réduit `grav_deploy_wait_retries` / `_delay` sous le seuil
+de `120 s` combiné, remontez-les (ou acceptez le nouveau défaut). Pensez à purger
+`{{ grav_base_directory }}/.last_failure.log` après diagnostic — le rôle ne le
+supprime jamais lui-même.
