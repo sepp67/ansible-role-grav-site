@@ -1,0 +1,96 @@
+---
+# T17 — l'image est déjà présente (référence PUREMENT LOCALE, absente de
+# tout registre). Un premier déploiement puis un `grav_state: restarted`
+# avec pull: missing (défaut) doivent réussir SANS consulter le registre.
+#
+# Preuve d'absence de consultation (au-delà de « pas de "Pulling" ») :
+#   1. la référence local-only.test/grav-runtime:pinned n'est résolvable
+#      dans AUCUN registre → toute consultation échouerait ;
+#   2. `docker events --filter event=pull` sur la fenêtre = vide.
+
+- name: "T17 — répertoire neuf"
+  ansible.builtin.file:
+    path: /opt/grav-t17
+    state: absent
+
+- name: "T17 — 1er déploiement de la référence locale (pull: missing)"  # noqa: role-name[path]
+  ansible.builtin.include_role:
+    name: "{{ grav_l7_role }}"
+  vars:
+    grav_manage_docker: false
+    grav_image: "{{ grav_l7_local_ref }}"
+    grav_version: "{{ grav_l7_local_tag }}"
+    grav_container_name: "grav-t17"
+    grav_base_directory: /opt/grav-t17
+    grav_bind_address: "127.0.0.1"
+    grav_http_port: 18170
+    grav_site_check_path: "{{ grav_l7_check_path }}"
+    grav_admin_user: "mol-t17"
+    grav_admin_password: "{{ grav_l7_admin_password }}"
+    grav_admin_email: "mol-t17@molecule.test"
+
+- name: "T17 — horodatage avant le redémarrage"
+  ansible.builtin.command: "date -u +%Y-%m-%dT%H:%M:%S"
+  register: _t17_t0
+  changed_when: false
+
+- name: "T17 — redémarrage (grav_state: restarted, pull: missing)"  # noqa: role-name[path]
+  ansible.builtin.include_role:
+    name: "{{ grav_l7_role }}"
+  vars:
+    grav_manage_docker: false
+    grav_image: "{{ grav_l7_local_ref }}"
+    grav_version: "{{ grav_l7_local_tag }}"
+    grav_container_name: "grav-t17"
+    grav_base_directory: /opt/grav-t17
+    grav_bind_address: "127.0.0.1"
+    grav_http_port: 18170
+    grav_site_check_path: "{{ grav_l7_check_path }}"
+    grav_state: restarted
+
+- name: "T17 — horodatage après le redémarrage"
+  ansible.builtin.command: "date -u +%Y-%m-%dT%H:%M:%S"
+  register: _t17_t1
+  changed_when: false
+
+- name: "T17 — événements 'pull' du daemon sur la fenêtre du redémarrage"
+  ansible.builtin.command:
+    argv:
+      - docker
+      - events
+      - "--since"
+      - "{{ _t17_t0.stdout | trim }}"
+      - "--until"
+      - "{{ _t17_t1.stdout | trim }}"
+      - "--filter"
+      - "event=pull"
+      - "--format"
+      - "{{ '{{' }}.Actor.Attributes.name{{ '}}' }}"
+  register: _t17_pull_events
+  changed_when: false
+
+- name: "T17 — le conteneur tourne toujours après le redémarrage"
+  ansible.builtin.command: "docker inspect --format '{{ '{{' }}.State.Status{{ '}}' }}' grav-t17"
+  register: _t17_status
+  changed_when: false
+
+- name: "T17 — assertions : redémarrage OK, aucun 'pull', registre jamais consulté"
+  ansible.builtin.assert:
+    that:
+      - _t17_status.stdout | trim == 'running'
+      - _t17_pull_events.stdout | trim == ''
+    fail_msg: >-
+      T17 : le redémarrage a échoué, ou un événement 'pull' a été émis
+      ({{ _t17_pull_events.stdout }}). Or l'image
+      {{ grav_l7_local_ref }}:{{ grav_l7_local_tag }} n'existe dans aucun
+      registre : une consultation aurait échoué.
+    success_msg: >-
+      T17 OK — redéploiement + restart réussis sur une image PUREMENT LOCALE ;
+      aucun événement 'pull' ; le registre n'a pas pu être consulté (référence
+      non résolvable) et ne l'a pas été.
+    quiet: true
+
+- name: "T17 — teardown"
+  ansible.builtin.include_tasks: _teardown.yml
+  vars:
+    _td_dir: /opt/grav-t17

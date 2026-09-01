@@ -1,0 +1,159 @@
+---
+# T18 — grav_force_pull: true doit transmettre pull: always et provoquer une
+# tentative de récupération réelle :
+#   T18a : registre disponible → le pull a lieu (image absente → présente,
+#          événement 'pull' émis) ;
+#   T18b : registre indisponible (référence locale non résolvable) → le
+#          déploiement ÉCHOUE, l'erreur est attribuable à la tentative de pull
+#          (contraste avec T17 : même image, pull: missing → succès).
+
+# ---------- T18a : registre disponible + force_pull → pull effectué ----------
+- name: "T18a — répertoire neuf"
+  ansible.builtin.file:
+    path: /opt/grav-t18a
+    state: absent
+
+- name: "T18a — retirer l'image du daemon imbriqué (pull réellement nécessaire)"
+  ansible.builtin.command: "docker rmi -f {{ grav_l7_runtime_ref }}:{{ grav_l7_version }}"
+  register: _t18a_rmi
+  changed_when: "'Untagged' in _t18a_rmi.stdout or 'Deleted' in _t18a_rmi.stdout"
+  failed_when: false
+
+- name: "T18a — confirmer l'absence locale de l'image"
+  ansible.builtin.command: "docker image inspect {{ grav_l7_runtime_ref }}:{{ grav_l7_version }}"
+  register: _t18a_pre
+  changed_when: false
+  failed_when: false
+
+- name: "T18a — horodatage avant déploiement"
+  ansible.builtin.command: "date -u +%Y-%m-%dT%H:%M:%S"
+  register: _t18a_t0
+  changed_when: false
+
+- name: "T18a — déployer avec grav_force_pull: true (registre disponible)"  # noqa: role-name[path]
+  ansible.builtin.include_role:
+    name: "{{ grav_l7_role }}"
+  vars:
+    grav_manage_docker: false
+    grav_image: "{{ grav_l7_runtime_ref }}"
+    grav_version: "{{ grav_l7_version }}"
+    grav_container_name: "grav-t18a"
+    grav_base_directory: /opt/grav-t18a
+    grav_bind_address: "127.0.0.1"
+    grav_http_port: 18180
+    grav_site_check_path: "{{ grav_l7_check_path }}"
+    grav_force_pull: true
+    grav_admin_user: "mol-t18a"
+    grav_admin_password: "{{ grav_l7_admin_password }}"
+    grav_admin_email: "mol-t18a@molecule.test"
+
+- name: "T18a — horodatage après déploiement"
+  ansible.builtin.command: "date -u +%Y-%m-%dT%H:%M:%S"
+  register: _t18a_t1
+  changed_when: false
+
+- name: "T18a — événements 'pull' sur la fenêtre du déploiement"
+  ansible.builtin.command:
+    argv:
+      - docker
+      - events
+      - "--since"
+      - "{{ _t18a_t0.stdout | trim }}"
+      - "--until"
+      - "{{ _t18a_t1.stdout | trim }}"
+      - "--filter"
+      - "event=pull"
+      - "--format"
+      - "{{ '{{' }}.Actor.Attributes.name{{ '}}' }}"
+  register: _t18a_pull_events
+  changed_when: false
+
+- name: "T18a — l'image est maintenant présente localement"
+  ansible.builtin.command: "docker image inspect {{ grav_l7_runtime_ref }}:{{ grav_l7_version }}"
+  register: _t18a_post
+  changed_when: false
+
+- name: "T18a — assertions : le pull a réellement eu lieu"
+  ansible.builtin.assert:
+    that:
+      - _t18a_pre.rc != 0                 # image absente avant
+      - _t18a_post.rc == 0                # image présente après le déploiement
+      - grav_l7_runtime_ref in _t18a_pull_events.stdout   # événement 'pull' pour ce dépôt
+    fail_msg: >-
+      T18a : grav_force_pull: true n'a pas déclenché de pull — image absente
+      avant (rc={{ _t18a_pre.rc }}), présente après (rc={{ _t18a_post.rc }}),
+      événements 'pull' : '{{ _t18a_pull_events.stdout }}'.
+    success_msg: >-
+      T18a OK — grav_force_pull: true → pull: always → image absente puis
+      récupérée depuis le registre (événement 'pull' émis pour
+      {{ grav_l7_runtime_ref }}).
+    quiet: true
+
+- name: "T18a — teardown"
+  ansible.builtin.include_tasks: _teardown.yml
+  vars:
+    _td_dir: /opt/grav-t18a
+
+# ------ T18b : registre indisponible + force_pull → échec attribuable au pull ------
+- name: "T18b — répertoire neuf"
+  ansible.builtin.file:
+    path: /opt/grav-t18b
+    state: absent
+
+- name: "T18b — tenter un déploiement force_pull sur la référence LOCALE (registre injoignable)"
+  block:
+    - name: "T18b — include role (attendu : échec sur la tentative de pull)"  # noqa: role-name[path]
+      ansible.builtin.include_role:
+        name: "{{ grav_l7_role }}"
+      vars:
+        grav_manage_docker: false
+        grav_image: "{{ grav_l7_local_ref }}"
+        grav_version: "{{ grav_l7_local_tag }}"
+        grav_container_name: "grav-t18b"
+        grav_base_directory: /opt/grav-t18b
+        grav_bind_address: "127.0.0.1"
+        grav_http_port: 18181
+        grav_site_check_path: "{{ grav_l7_check_path }}"
+        grav_force_pull: true
+        grav_admin_user: "mol-t18b"
+        grav_admin_password: "{{ grav_l7_admin_password }}"
+        grav_admin_email: "mol-t18b@molecule.test"
+      register: _t18b_role
+    - name: "T18b — le rôle n'a PAS échoué (anomalie)"
+      ansible.builtin.set_fact:
+        _t18b_failed: false
+  rescue:
+    - name: "T18b — échec observé (attendu)"
+      ansible.builtin.set_fact:
+        _t18b_failed: true
+        _t18b_msg: "{{ ansible_failed_result.msg | default('') }}"
+
+- name: "T18b — aucun conteneur grav-t18b n'a démarré"
+  ansible.builtin.command: "docker ps -a --filter name=grav-t18b --format '{{ '{{' }}.Names{{ '}}' }}'"
+  register: _t18b_ps
+  changed_when: false
+
+- name: "T18b — assertions : échec attribuable à la tentative de pull"
+  ansible.builtin.assert:
+    that:
+      - _t18b_failed | bool
+      - _t18b_ps.stdout | trim == ''
+      - >-
+        ('local-only.test' in (_t18b_msg | lower))
+        or ('pull' in (_t18b_msg | lower))
+        or ('resolve' in (_t18b_msg | lower))
+        or ('no such host' in (_t18b_msg | lower))
+        or ('dial tcp' in (_t18b_msg | lower))
+    fail_msg: >-
+      T18b : le rôle n'a pas échoué, ou l'échec n'est pas lié à la tentative
+      de pull. Message : {{ _t18b_msg }}
+    success_msg: >-
+      T18b OK — grav_force_pull: true → pull: always → tentative de pull de
+      local-only.test/grav-runtime:pinned → échec réseau (registre injoignable),
+      alors que la même image en pull: missing (T17) réussit.
+    quiet: true
+
+- name: "T18b — teardown"
+  ansible.builtin.include_tasks: _teardown.yml
+  vars:
+    _td_dir: /opt/grav-t18b

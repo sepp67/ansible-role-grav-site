@@ -1,0 +1,22 @@
+---
+# Voir molecule/deploy/tasks/_teardown.yml — même logique.
+- name: "Teardown : docker compose down -v ({{ _td_dir }})"
+  ansible.builtin.command:
+    cmd: "docker compose -f {{ _td_dir }}/docker-compose.yml down -v --remove-orphans"
+  changed_when: true
+  failed_when: false
+
+- name: "Teardown : supprimer le répertoire d'instance ({{ _td_dir }})"
+  ansible.builtin.command:
+    argv:
+      - docker
+      - run
+      - --rm
+      - -v
+      - "{{ _td_dir | dirname }}:/cleanup"
+      - alpine
+      - rm
+      - -rf
+      - "/cleanup/{{ _td_dir | basename }}"
+  changed_when: true
+  failed_when: false

@@ -1,0 +1,24 @@
+---
+- name: "Converge — politique de pull (T17 / T18)"
+  hosts: all
+  gather_facts: true
+
+  vars:
+    grav_l7_role: "{{ lookup('env', 'MOLECULE_PROJECT_DIRECTORY') }}"
+    grav_l7_runtime_ref: "ghcr.io/sepp67/grav-runtime"
+    grav_l7_version: "1.0.4"
+    grav_l7_local_ref: "local-only.test/grav-runtime"
+    grav_l7_local_tag: "pinned"
+    grav_l7_check_path: "/admin"
+
+  tasks:
+    - name: "Générer le mot de passe fictif de test (une seule fois)"
+      ansible.builtin.set_fact:
+        grav_l7_admin_password: "molpw-{{ lookup('ansible.builtin.password', '/dev/null length=24 chars=ascii_letters,digits') }}"
+      no_log: true
+
+    - name: "T17 — redémarrage avec image présente, registre jamais consulté"
+      ansible.builtin.include_tasks: tasks/t17_restart_no_registry.yml
+
+    - name: "T18 — grav_force_pull: true → pull: always → tentative réelle"
+      ansible.builtin.include_tasks: tasks/t18_force_pull.yml

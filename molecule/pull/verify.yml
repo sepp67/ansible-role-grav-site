@@ -1,0 +1,25 @@
+---
+- name: "Verify — aucune instance de test ne subsiste après converge (pull)"
+  hosts: all
+  gather_facts: false
+
+  tasks:
+    - name: "Conteneurs Grav de test résiduels"
+      ansible.builtin.command: "docker ps -a --filter name=grav-t --format '{{ '{{' }}.Names{{ '}}' }}'"
+      register: _grav_verify_ps
+      changed_when: false
+
+    - name: "Répertoires d'instance de test résiduels"
+      ansible.builtin.find:
+        paths: /opt
+        patterns: "grav-t*"
+        file_type: directory
+      register: _grav_verify_dirs
+
+    - name: "Assertion : converge a tout nettoyé"
+      ansible.builtin.assert:
+        that:
+          - _grav_verify_ps.stdout | trim == ''
+          - _grav_verify_dirs.matched | int == 0
+        success_msg: "T17 / T18 : instances de test nettoyées."
+        quiet: true

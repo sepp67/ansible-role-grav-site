@@ -1,0 +1,45 @@
+---
+# Scénario molecule "pull" — T17 / T18 (contrat v1.0.1 §5.6).
+#
+# Docker-in-Docker (Debian 12, privilégié, systemd, storage-driver vfs).
+# Prouve que :
+#   - T17 : un redéploiement / redémarrage avec l'image déjà présente
+#     n'exige AUCUNE consultation du registre (pull: missing par défaut) ;
+#   - T18 : grav_force_pull: true transmet réellement pull: always et
+#     provoque une tentative de récupération (succès si le registre répond,
+#     échec attribuable à la tentative de pull sinon).
+
+role_name_check: 1
+
+driver:
+  name: docker
+
+platforms:
+  - name: grav-l7-pull-debian12
+    image: geerlingguy/docker-debian12-ansible:latest
+    command: /usr/lib/systemd/systemd
+    privileged: true
+    cgroupns_mode: host
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+    tmpfs:
+      - /run
+      - /run/lock
+    pre_build_image: true
+
+provisioner:
+  name: ansible
+
+dependency:
+  name: galaxy
+  enabled: false
+
+scenario:
+  name: pull
+  test_sequence:
+    - destroy
+    - create
+    - prepare
+    - converge
+    - verify
+    - destroy
