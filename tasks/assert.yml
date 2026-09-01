@@ -181,6 +181,16 @@
       le démarrage du conteneur.
     quiet: true
 
+- name: "Valider grav_admin_type"
+  ansible.builtin.assert:
+    that:
+      - grav_admin_type in ['', 'admin', 'api', 'both']
+    fail_msg: >-
+      grav_admin_type="{{ grav_admin_type }}" invalide : doit être vide (le
+      runtime choisit "both" par défaut), "admin", "api" ou "both" — voir
+      README.md "Contrat avec grav-runtime".
+    quiet: true
+
 # Rassemble toutes les valeurs qui finissent dans grav.env (voir
 # templates/grav.env.j2) : même en format `raw`, une ligne = une variable —
 # un retour à la ligne dans une valeur couperait/corromprait le fichier.
@@ -189,7 +199,7 @@
     _grav_env_values: >-
       {{ [grav_admin_user, grav_admin_password, grav_admin_email,
           grav_admin_fullname, grav_admin_title, grav_admin_language,
-          grav_timezone] + (grav_extra_environment.values() | list) }}
+          grav_admin_type, grav_timezone] + (grav_extra_environment.values() | list) }}
   no_log: true
 
 - name: "Interdire les retours à la ligne dans les valeurs destinées à grav.env"

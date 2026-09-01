@@ -192,3 +192,12 @@ Un port de registre reste explicitement autorisé.
 
 **Action** : si `grav_image` contenait un tag ou un digest, déplacez-le vers
 `grav_version` (ou attendez `grav_digest` au Lot 4).
+
+---
+
+## 8. `grav_admin_type` (Lot 3 — appliqué)
+
+Nouvelle variable optionnelle, **additive** : `""` (défaut, le runtime choisit `both`),
+`"admin"`, `"api"` ou `"both"`. Aucune action requise si vous ne l'utilisiez pas déjà
+via `grav_extra_environment` (auquel cas, migrez vers `grav_admin_type`, plus lisible
+et désormais validée).

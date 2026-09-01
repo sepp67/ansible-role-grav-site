@@ -48,6 +48,8 @@ découpée en `Ajouté` / `Modifié` / `Déprécié` / `Supprimé` / `Corrigé` 
 - **Modifié** — validation de `grav_image` durcie : refuse un tag final ou un digest
   incorporés, autorise explicitement le port d'un registre privé
   (`registry.example.net:5000/projet-grav`).
+- **Ajouté** — `grav_admin_type` (`''`/`admin`/`api`/`both`, défaut `''` = le runtime
+  choisit `both`), émise dans `grav.env` comme `GRAV_ADMIN_TYPE` si non vide.
 
 ### À venir (Lots 4–9, changements d'interface — `2.0.0`)
 

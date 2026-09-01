@@ -61,6 +61,12 @@ grav_admin_fullname: ""
 grav_admin_title: ""
 grav_admin_language: ""
 
+# Type de permissions du compte bootstrapé, transmis tel quel au runtime
+# (voir grav-runtime docker/bootstrap-admin.sh). "" laisse le runtime
+# décider (son propre défaut : "both"). Additif (v2.0.0) — voir README.md
+# "Contrat avec grav-runtime".
+grav_admin_type: ""
+
 grav_timezone: ""
 
 # Échappatoire générique : variables d'environnement additionnelles

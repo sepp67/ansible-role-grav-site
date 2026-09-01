@@ -199,6 +199,7 @@ exécution (`tasks/assert.yml`).
 | `grav_base_directory` | `/opt/grav-site/{{ grav_container_name }}` | Racine de l'instance sur l'hôte |
 | `grav_restart_policy` | `unless-stopped` | Politique de redémarrage Docker |
 | `grav_admin_fullname` / `_title` / `_language` | `""` | Optionnels, transmis au runtime |
+| `grav_admin_type` | `""` | `admin` / `api` / `both` — vide laisse le runtime décider (`both`) |
 | `grav_timezone` | `""` | `date.timezone` PHP |
 | `grav_extra_environment` | `{}` | Variables d'environnement additionnelles, transmises telles quelles |
 | `grav_healthcheck_interval` / `_timeout` / `_start_period` / `_retries` | `30s` / `3s` / `10s` / `3` | Miroir du `HEALTHCHECK` de l'image, ajustable sans reconstruire |
@@ -223,7 +224,8 @@ honorée**, mais est **dépréciée** : le rôle émet un avertissement
 
 `grav.env` (mode `0600`) ne contient que les variables du contrat `grav-runtime` :
 `GRAV_ADMIN_USER` / `_PASSWORD` / `_EMAIL` (toutes ou aucune), `GRAV_ADMIN_FULLNAME`,
-`_TITLE`, `_LANGUAGE`, `GRAV_TIMEZONE`, plus les clés de `grav_extra_environment`.
+`_TITLE`, `_LANGUAGE`, `_TYPE`, `GRAV_TIMEZONE`, plus les clés de
+`grav_extra_environment`.
 Format `raw` : aucune interpolation `${VAR}`, aucun dépouillement de guillemets.
 
 ### Stratégie des secrets
@@ -334,6 +336,8 @@ Ce rôle s'appuie sur le contrat de `grav-runtime` sans le remettre en cause :
   premier compte **si et seulement si** `GRAV_ADMIN_USER` / `_PASSWORD` / `_EMAIL`
   sont toutes fournies **et** que le volume `accounts` est vide. Un état partiel
   (1 ou 2 sur 3) bloque le démarrage du conteneur.
+- `GRAV_ADMIN_TYPE` (`admin` / `api` / `both`, défaut runtime `both`) contrôle les
+  permissions du compte bootstrapé — `grav_admin_type`, optionnel.
 - 4 répertoires persistants montables séparément (`user/pages`, `user/accounts`,
   `user/data`, `user/images`), initialisés par le runtime depuis son seed interne,
   par sous-répertoire, uniquement si vides.
