@@ -59,6 +59,22 @@ jobs:
           ! grep -rniE 'control[_-]repo|/home/[a-z]+/' \
             --include='*.yml' --include='*.yaml' --include='*.cfg' --include='Makefile' \
             --exclude-dir=Ressources --exclude-dir=.git .
+      - name: "Aucun lien symbolique suivi pointant hors du dépôt"
+        run: |
+          fail=0
+          for path in $(git ls-files -s | awk '$1=="120000"{print $4}'); do
+            tgt="$(git show ":$path")"
+            case "$tgt" in
+              /* | ../* | */../* )
+                echo "::error::lien symbolique hors du dépôt : $path -> $tgt"
+                fail=1 ;;
+            esac
+          done
+          exit $fail
+      - name: "Aucune adresse de VM privée (RFC 1918) dans inventories/"
+        run: |
+          ! grep -rnE 'ansible_host:[[:space:]]*(10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[01])\.)' \
+            inventories/
 
   test:
     runs-on: ubuntu-latest
