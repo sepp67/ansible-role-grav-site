@@ -4,6 +4,12 @@
 __pycache__/
 *.pyc
 
+# Cache local des rôles / collections Ansible — jamais versionné
+# (ansible-galaxy le recrée à la demande ; aucun code de ce dépôt ne s'en
+# sert : les playbooks résolvent le rôle par "{{ playbook_dir }}/..").
+.ansible/
+/roles/
+
 # Vault déchiffré réel — jamais commité (seul vault.yml.example l'est).
 # Couvre inventories/production/group_vars/grav_servers/vault.yml et tout
 # autre environnement créé sur ce modèle.
