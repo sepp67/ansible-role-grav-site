@@ -1,0 +1,138 @@
+---
+# T20 / T23 — Traçabilité structurée sans Docker et SANS gather_facts.
+#
+# Rejoue UNIQUEMENT tasks/version.yml (écrit des fichiers dans un
+# répertoire /tmp local, aucun conteneur, aucun réseau) et vérifie :
+#   - .deployed_version = référence effective (image:version ou image@digest) ;
+#   - .deployed_state.yml : 5 champs cohérents, effective_reference valide ;
+#   - deployed_versions.log : append-only, +1 ligne SEULEMENT si la
+#     référence change (idempotence, mise à jour, rollback A->B->A) ;
+#   - fonctionne avec gather_facts: false (horodatage via now(), pas de fact).
+#
+# Usage (depuis la racine du dépôt) :
+#   cd tests && ansible-playbook -i inventory test_traceability.yml
+
+- name: "T20/T23 — Traçabilité structurée (aucun Docker, aucun gather_facts)"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    _grav_trace_dir: "/tmp/grav-traceability-test"
+    _grav_trace_image: "ghcr.io/example/site"
+    _grav_trace_digest: "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+
+  tasks:
+    - name: "Repartir d'un répertoire propre"
+      ansible.builtin.file:
+        path: "{{ _grav_trace_dir }}"
+        state: "{{ item }}"
+        mode: "0755"
+      loop: [absent, directory]
+
+    - name: "Déploiement A (sans digest)"  # noqa: role-name[path]
+      ansible.builtin.include_role:
+        name: "{{ playbook_dir }}/.."
+        tasks_from: version
+      vars:
+        grav_image: "{{ _grav_trace_image }}"
+        grav_version: "1.0.0"
+        grav_digest: ""
+        grav_base_directory: "{{ _grav_trace_dir }}"
+
+    - name: "Lire les fichiers de traçabilité après A"
+      ansible.builtin.slurp:
+        path: "{{ _grav_trace_dir }}/{{ item }}"
+      register: _grav_trace_after_a
+      loop: [".deployed_version", ".deployed_state.yml", "deployed_versions.log"]
+
+    - name: "Vérifier l'état après A"
+      ansible.builtin.assert:
+        that:
+          - (_grav_trace_after_a.results[0].content | b64decode | trim) == (_grav_trace_image ~ ':1.0.0')
+          - _state_a.image == _grav_trace_image
+          - _state_a.declared_version == "1.0.0"
+          - _state_a.digest == ""
+          - _state_a.effective_reference == (_grav_trace_image ~ ':1.0.0')
+          - _state_a.deployed_at is match('^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$')
+          - (_grav_trace_after_a.results[2].content | b64decode).splitlines() | length == 1
+        fail_msg: "État de traçabilité incorrect après le déploiement A."
+        quiet: true
+      vars:
+        _state_a: "{{ _grav_trace_after_a.results[1].content | b64decode | from_yaml }}"
+
+    - name: "Redéploiement A à l'identique (idempotence attendue)"  # noqa: role-name[path]
+      ansible.builtin.include_role:
+        name: "{{ playbook_dir }}/.."
+        tasks_from: version
+      vars:
+        grav_image: "{{ _grav_trace_image }}"
+        grav_version: "1.0.0"
+        grav_digest: ""
+        grav_base_directory: "{{ _grav_trace_dir }}"
+
+    - name: "Mise à jour vers B"  # noqa: role-name[path]
+      ansible.builtin.include_role:
+        name: "{{ playbook_dir }}/.."
+        tasks_from: version
+      vars:
+        grav_image: "{{ _grav_trace_image }}"
+        grav_version: "1.0.1"
+        grav_digest: ""
+        grav_base_directory: "{{ _grav_trace_dir }}"
+
+    - name: "Rollback vers A"  # noqa: role-name[path]
+      ansible.builtin.include_role:
+        name: "{{ playbook_dir }}/.."
+        tasks_from: version
+      vars:
+        grav_image: "{{ _grav_trace_image }}"
+        grav_version: "1.0.0"
+        grav_digest: ""
+        grav_base_directory: "{{ _grav_trace_dir }}"
+
+    - name: "Déploiement par digest"  # noqa: role-name[path]
+      ansible.builtin.include_role:
+        name: "{{ playbook_dir }}/.."
+        tasks_from: version
+      vars:
+        grav_image: "{{ _grav_trace_image }}"
+        grav_version: "1.0.0"
+        grav_digest: "{{ _grav_trace_digest }}"
+        grav_base_directory: "{{ _grav_trace_dir }}"
+
+    - name: "Lire les fichiers de traçabilité finaux"
+      ansible.builtin.slurp:
+        path: "{{ _grav_trace_dir }}/{{ item }}"
+      register: _grav_trace_final
+      loop: [".deployed_version", ".deployed_state.yml", "deployed_versions.log"]
+
+    - name: "Vérifier l'état final : journal = 4 lignes (A, B, A, A@digest), état = digest"
+      ansible.builtin.assert:
+        that:
+          # A (1) -> A idem (0) -> B (1) -> A (1) -> A@digest (1) = 4 lignes
+          - (_grav_trace_final.results[2].content | b64decode).splitlines() | length == 4
+          - (_grav_trace_final.results[0].content | b64decode | trim) == (_grav_trace_image ~ '@' ~ _grav_trace_digest)
+          - _state_final.digest == _grav_trace_digest
+          - _state_final.declared_version == "1.0.0"
+          - _state_final.effective_reference == (_grav_trace_image ~ '@' ~ _grav_trace_digest)
+          - "'@' in _state_final.effective_reference"
+          - "':1.0.0@' not in _state_final.effective_reference"
+        fail_msg: >-
+          Journal ou état final incorrect :
+          {{ (_grav_trace_final.results[2].content | b64decode).splitlines() }}
+        quiet: true
+      vars:
+        _state_final: "{{ _grav_trace_final.results[1].content | b64decode | from_yaml }}"
+
+    - name: "Nettoyer"
+      ansible.builtin.file:
+        path: "{{ _grav_trace_dir }}"
+        state: absent
+
+    - name: "Traçabilité vérifiée"
+      ansible.builtin.debug:
+        msg: >-
+          Traçabilité OK : .deployed_version, .deployed_state.yml et
+          deployed_versions.log (idempotence + A->B->A + digest) — sans
+          gather_facts.

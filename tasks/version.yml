@@ -1,58 +1,68 @@
 ---
-# Enregistre la version effectivement déployée et validée par le
-# healthcheck. Une mise à jour ou un rollback consistent simplement à
-# rejouer le rôle avec un grav_version différent : ce fichier ne sert qu'à
-# la traçabilité, il ne pilote aucune logique du rôle.
+# Enregistre l'état de déploiement effectif, validé par le healthcheck.
+# Purement documentaire : ne pilote aucune logique du rôle. Une mise à jour
+# ou un rollback consistent simplement à rejouer le rôle avec une autre
+# référence (grav_version et/ou grav_digest).
 
-- name: "Enregistrer la version actuellement déployée"
+# Horodatage : source de temps INDÉPENDANTE de gather_facts (contrat v1.0.1
+# §11.6). now() est un global Jinja d'Ansible (heure du contrôleur, UTC).
+# now() se réévalue à chaque appel : on le fige ici une fois pour toute la
+# durée de l'invocation du rôle (le journal des déploiements en dépend).
+- name: "Figer l'horodatage du déploiement"
+  ansible.builtin.set_fact:
+    _grav_deployed_at: "{{ now(utc=true).strftime('%Y-%m-%dT%H:%M:%SZ') }}"
+
+# .deployed_version : une ligne, la référence Docker EFFECTIVE actuellement
+# déployée ("image:version" sans digest, "image@digest" avec). Sert de
+# marqueur de changement pour le journal ci-dessous — change dès que la
+# version OU le digest change.
+- name: "Enregistrer la référence effective actuellement déployée"
   ansible.builtin.copy:
     content: |
-      {{ grav_image }}:{{ grav_version }}
+      {{ _grav_effective_reference }}
     dest: "{{ grav_base_directory }}/.deployed_version"
     mode: "0644"
-  register: grav_version_marker
+  register: _grav_version_marker
 
-# N'ajoute une ligne au journal que si la référence image:version déployée a
-# réellement changé (marqueur ci-dessus effectivement modifié) — jamais sur
-# un redéploiement de la même version ou un simple grav_state: restarted.
+# .deployed_state.yml : vue structurée (contrat v1.0.1 §13.1). Écrit à
+# chaque passage ; idempotent (aucun changement si le contenu est
+# identique). deployed_at change à chaque déploiement — c'est voulu :
+# ce fichier reflète l'état courant, pas un historique.
+- name: "Enregistrer l'état de déploiement structuré (.deployed_state.yml)"
+  ansible.builtin.template:
+    src: deployed_state.yml.j2
+    dest: "{{ grav_base_directory }}/.deployed_state.yml"
+    mode: "0644"
+
+# Journal append-only : une ligne UNIQUEMENT quand la référence effective
+# change (marqueur ci-dessus effectivement modifié) — jamais sur un
+# redéploiement identique ni un simple grav_state: restarted.
 #
 # Lecture + réécriture complète (slurp puis copy) plutôt que lineinfile :
-# lineinfile déduplique par CONTENU EXACT de ligne dans tout le fichier, pas
-# par simple ajout — un rollback vers une version déjà vue précédemment (ex.
-# A -> B -> A) produirait une ligne strictement identique à une entrée
-# passée (même "image:version", et ansible_date_time est figé pour toute la
-# durée du play) et lineinfile refuserait silencieusement de l'ajouter
-# (constaté en test, voir tests/_verify_phase.yml). slurp+copy s'exécutent
-# tous deux sur l'hôte cible (jamais sur le contrôleur, indispensable pour
-# un déploiement distant) et n'interpolent aucune valeur dans un shell : pas
-# de risque d'injection même si grav_image/grav_version contenaient des
-# métacaractères shell.
-# noqa: no-handler — voir la justification ci-dessus : doit s'exécuter
-# immédiatement pour que tests/test.yml puisse vérifier le journal entre
-# chaque inclusion du rôle dans le même play.
+# lineinfile déduplique par CONTENU EXACT de ligne — un rollback vers une
+# référence déjà vue (ex. A -> B -> A) produirait, si l'horodatage était
+# figé, une ligne identique à une entrée passée, et lineinfile refuserait
+# silencieusement de l'ajouter (constaté en test, voir tests/_verify_phase.yml).
+# slurp+copy s'exécutent tous deux sur l'hôte cible (jamais le contrôleur,
+# indispensable pour un déploiement distant) et n'interpolent aucune valeur
+# dans un shell : aucun risque d'injection.
+# noqa: no-handler — doit s'exécuter immédiatement pour que tests/test.yml
+# puisse vérifier le journal entre chaque inclusion du rôle dans le même play.
 - name: "Lire le journal des déploiements existant"  # noqa: no-handler
   ansible.builtin.slurp:
     path: "{{ grav_base_directory }}/deployed_versions.log"
-  register: grav_existing_log
-  when: grav_version_marker.changed
+  register: _grav_existing_log
+  when: _grav_version_marker.changed
   failed_when: false
 
-# Important : Jinja2 n'interprète PAS "\n" comme une séquence d'échappement
-# dans ses propres littéraux de chaîne (constaté en test — voir plus bas) ;
-# seul un scalaire YAML *entre guillemets doubles*, sur une seule ligne
-# physique, fait convertir "\n" en un vrai saut de ligne (traitement fait
-# par le parseur YAML avant que Jinja ne s'exécute). D'où : contenu
-# précédent isolé dans une variable courte (pour rester sous la limite de
-# longueur de ligne), puis une unique ligne "content:" entre guillemets
-# doubles ci-dessous — jamais de bloc replié (>-) pour cette valeur.
 - name: "Extraire le contenu existant du journal"  # noqa: no-handler
   ansible.builtin.set_fact:
-    _grav_existing_log_content: "{{ grav_existing_log.content | default('') | b64decode }}"
-  when: grav_version_marker.changed
+    _grav_existing_log_content: "{{ _grav_existing_log.content | default('') | b64decode }}"
+  when: _grav_version_marker.changed
 
-- name: "Ajouter la version au journal des déploiements"  # noqa: no-handler
+- name: "Ajouter la référence effective au journal des déploiements"  # noqa: no-handler
   ansible.builtin.copy:
-    content: "{{ _grav_existing_log_content }}{{ ansible_date_time.iso8601 }} {{ grav_image }}:{{ grav_version }}\n"
+    content: "{{ _grav_existing_log_content }}{{ _grav_deployed_at }} {{ _grav_effective_reference }}\n"
     dest: "{{ grav_base_directory }}/deployed_versions.log"
     mode: "0644"
-  when: grav_version_marker.changed
+  when: _grav_version_marker.changed

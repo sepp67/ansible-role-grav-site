@@ -79,11 +79,18 @@ découpée en `Ajouté` / `Modifié` / `Déprécié` / `Supprimé` / `Corrigé` 
   du registre si l'image est déjà présente. Nouvelle variable `grav_force_pull`
   (`false` par défaut ; `true` → `pull: always`).
 
-### À venir (Lots 4–9, changements d'interface — `2.0.0`)
+- **Ajouté** — `.deployed_state.yml` : état de déploiement structuré (`image`,
+  `declared_version`, `digest`, `effective_reference`, `deployed_at`) écrit à côté de
+  `.deployed_version` (qui contient désormais la référence effective) et de
+  `deployed_versions.log`. Le journal ajoute une ligne quand la **référence effective**
+  change (version **ou** digest), jamais sur un redéploiement identique. L'historique
+  existant n'est jamais supprimé.
+- **Modifié** — l'horodatage de la traçabilité utilise `now(utc=true)` (heure
+  contrôleur) au lieu de `ansible_date_time` : la traçabilité **fonctionne sans
+  `gather_facts`** (contrat §11.6). Registres de `tasks/version.yml` préfixés `_grav_`.
 
-- Traçabilité structurée (`.deployed_state.yml` : `declared_version` / `digest` /
-  `effective_reference` / `deployed_at`) ; fonctionnement sans `gather_facts` — Lot 4
-  (commit suivant).
+### À venir (Lots 5–9, changements d'interface — `2.0.0`)
+
 - Garde contre une instance Grav laissée non initialisée (volume `accounts` vide sans
   identifiants) — Lot 6.
 - Validation IPv6 complète de `grav_bind_address` ; adresse du contrôle HTTP dérivée ;

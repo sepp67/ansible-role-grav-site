@@ -1,0 +1,10 @@
+# Généré par le rôle Ansible grav-site après validation du healthcheck —
+# ne pas modifier à la main. État de déploiement effectif de cette instance.
+#
+# effective_reference est TOUJOURS une référence Docker valide : soit
+# "image:version" (pas de digest), soit "image@digest". Jamais l'hybride.
+image: "{{ grav_image }}"
+declared_version: "{{ grav_version }}"
+digest: "{{ grav_digest }}"
+effective_reference: "{{ _grav_effective_reference }}"
+deployed_at: "{{ _grav_deployed_at }}"

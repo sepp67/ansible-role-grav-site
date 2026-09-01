@@ -50,6 +50,10 @@ jobs:
         run: |
           cd tests
           ansible-playbook -i inventory test_assertions.yml
+      - name: "T20/T23 — Traçabilité structurée (aucun Docker, sans gather_facts)"
+        run: |
+          cd tests
+          ansible-playbook -i inventory test_traceability.yml
       - name: "grav_version de l'exemple jamais 'latest'"
         run: |
           ! grep -E '^\s*grav_version:\s*"?latest"?\s*$' \

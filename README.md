@@ -42,7 +42,8 @@ de ce dépôt ni de `grav-sites-ops`.
 5. Génère un `docker-compose.yml` et un `grav.env` génériques.
 6. Récupère l'image demandée et applique l'état voulu au conteneur.
 7. Attend le statut Docker `healthy`, puis vérifie qu'une page réelle du site répond.
-8. Enregistre la version déployée (`.deployed_version` + `deployed_versions.log`).
+8. Enregistre l'état de déploiement (`.deployed_state.yml` structuré,
+   `.deployed_version`, `deployed_versions.log` append-only).
 
 Une mise à jour ou un rollback consistent à changer `grav_version` et à rejouer le rôle.
 
@@ -421,8 +422,9 @@ make vault-edit VAULT=inventories/mon-site/group_vars/grav_servers/vault.yml
 ├── grav.env                 # généré, mode 0600
 ├── secrets/                 # fichiers secrets, montés en lecture seule
 ├── data/{pages,accounts,data,images}/   # bind mounts persistants
-├── .deployed_version        # image:version actuellement déployée
-└── deployed_versions.log    # historique horodaté
+├── .deployed_state.yml      # état structuré : image / declared_version / digest / effective_reference / deployed_at
+├── .deployed_version        # une ligne : la référence effective actuellement déployée
+└── deployed_versions.log    # historique append-only (une ligne par changement de référence)
 ```
 
 ## Tests
@@ -431,16 +433,22 @@ make vault-edit VAULT=inventories/mon-site/group_vars/grav_servers/vault.yml
 ansible-lint . playbooks/ inventories/ examples/
 cd tests
 ansible-playbook -i inventory test_assertions.yml
+ansible-playbook -i inventory test_traceability.yml
 ansible-playbook -i inventory test.yml
 ansible-playbook -i inventory test_env_encoding.yml
 ansible-playbook -i inventory test_standalone.yml
 ```
 
 - `tests/test_assertions.yml` : rejoue **uniquement** `tasks/assert.yml` (aucun
-  Docker, aucune mutation) sur ~25 scénarios valides/invalides — présence et forme
-  de `grav_image`/`grav_bind_address`, `grav_admin_type`, clés de
-  `grav_extra_environment`, tri-state admin, surcharge honorée d'un chemin dérivé.
-  Vérifie que chaque scénario échoue — ou réussit — exactement comme attendu.
+  Docker, aucune mutation) sur ~35 scénarios valides/invalides — présence et forme
+  de `grav_image`/`grav_bind_address`/`grav_digest`, `grav_admin_type`, clés de
+  `grav_extra_environment`, tri-state admin, surcharge honorée d'un chemin dérivé,
+  rendu de la référence effective. Vérifie que chaque scénario échoue — ou réussit —
+  exactement comme attendu.
+- `tests/test_traceability.yml` : rejoue **uniquement** `tasks/version.yml` (fichiers
+  dans `/tmp`, aucun Docker, **`gather_facts: false`**) — `.deployed_state.yml`
+  structuré, `.deployed_version` = référence effective, `deployed_versions.log`
+  append-only (idempotence, mise à jour, rollback A→B→A, déploiement par digest).
 - `tests/test.yml` : premier déploiement, redéploiement idempotent, mise à jour et
   rollback avec deux versions publiques réelles de `grav-runtime`, en vérifiant à
   chaque étape l'image en exécution, la survie d'un marqueur dans `user/pages` et le

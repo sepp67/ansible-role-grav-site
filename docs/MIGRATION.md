@@ -240,3 +240,33 @@ en minuscules, sans préfixe `GRAV_`, ou l'une des clés réservées, **échouer
 **Action** : renommez la clé (préfixe `GRAV_`, majuscules), ou — si elle correspond à
 une variable de première classe (`grav_admin_type`, `grav_timezone`, `grav_admin_*`) —
 utilisez cette variable directement.
+
+---
+
+## 10. Traçabilité structurée (Lot 4 — appliqué)
+
+Nouveau fichier `{{ grav_base_directory }}/.deployed_state.yml` sur l'hôte :
+
+```yaml
+image: "ghcr.io/sepp67/projet-gites"
+declared_version: "1.0.7"
+digest: "sha256:…"                # "" si non épinglé
+effective_reference: "ghcr.io/sepp67/projet-gites@sha256:…"
+deployed_at: "2026-09-01T12:00:00Z"
+```
+
+Changements sur les fichiers existants (rétrocompatibles pour un déploiement **sans
+digest** — contenu identique à avant) :
+
+| Fichier | Avant | Après |
+|---|---|---|
+| `.deployed_version` | `image:version` | référence effective (= `image:version` sans digest, `image@digest` avec) |
+| `deployed_versions.log` | `<iso8601> image:version`, +1 ligne si le marqueur change | `<horodatage> <référence effective>`, +1 ligne si la référence effective change (version **ou digest**) |
+
+L'historique existant du journal **n'est jamais supprimé**. L'horodatage vient
+désormais de `now(utc=true)` (heure du contrôleur) — la traçabilité fonctionne même si
+l'appelant utilise `gather_facts: false`.
+
+**Action** : aucune. Si un script lisait `.deployed_version` en supposant le format
+`image:version`, il fonctionne toujours tant qu'aucun digest n'est utilisé ; sinon,
+lisez plutôt `.deployed_state.yml` (`effective_reference` ou `declared_version`).

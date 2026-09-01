@@ -44,6 +44,23 @@
       - (grav_version_file.content | b64decode | trim) == (grav_image ~ ':' ~ grav_expected_version)
     quiet: true
 
+- name: "Lire l'état structuré .deployed_state.yml — {{ grav_phase_label }}"
+  ansible.builtin.slurp:
+    path: "{{ grav_base_directory }}/.deployed_state.yml"
+  register: grav_state_file
+
+- name: "Confirmer .deployed_state.yml — {{ grav_phase_label }}"
+  ansible.builtin.assert:
+    that:
+      - _grav_state.image == grav_image
+      - _grav_state.declared_version == grav_expected_version
+      - _grav_state.digest == ""
+      - _grav_state.effective_reference == (grav_image ~ ':' ~ grav_expected_version)
+      - _grav_state.deployed_at is match('^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$')
+    quiet: true
+  vars:
+    _grav_state: "{{ grav_state_file.content | b64decode | from_yaml }}"
+
 - name: "Compter les lignes du journal des versions — {{ grav_phase_label }}"
   ansible.builtin.command:
     cmd: "wc -l {{ grav_base_directory }}/deployed_versions.log"
