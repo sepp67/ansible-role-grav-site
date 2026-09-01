@@ -16,7 +16,7 @@ grav_base_directory: "/opt/mon-site"
 
 # --- Réseau ---
 # 127.0.0.1 : usage strictement local. Pour une VM du LAN, mettez l'IP LAN
-# explicite de la VM (ex. 192.168.1.98). Voir docs/MIGRATION.md §2.
+# explicite de la VM (ex. 192.168.1.10). Voir docs/MIGRATION.md §2.
 grav_bind_address: "127.0.0.1"
 grav_http_port: 8080
 
