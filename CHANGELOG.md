@@ -45,6 +45,9 @@ découpée en `Ajouté` / `Modifié` / `Déprécié` / `Supprimé` / `Corrigé` 
   `grav_data_directory`, `grav_images_directory`, `grav_secret_directory` : toujours
   acceptée et honorée, mais émet un avertissement `[DEPRECATED]` si la valeur diffère
   du chemin normalement dérivé de `grav_base_directory`. Retrait éventuel en `3.0.0`.
+- **Modifié** — validation de `grav_image` durcie : refuse un tag final ou un digest
+  incorporés, autorise explicitement le port d'un registre privé
+  (`registry.example.net:5000/projet-grav`).
 
 ### À venir (Lots 4–9, changements d'interface — `2.0.0`)
 

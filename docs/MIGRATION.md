@@ -173,3 +173,22 @@ volume `accounts` est vide ou absent **et** que `grav_admin_user` / `_password` 
 
 **Action** : gardez vos identifiants admin dans votre Vault, y compris après le
 premier déploiement.
+
+---
+
+## 7. Validation de `grav_image` durcie (Lot 3 — appliqué)
+
+Avant : seule `grav_image | length > 0` était vérifiée.
+
+Depuis ce lot : `grav_image` ne doit contenir **ni tag final, ni digest incorporé**.
+Un port de registre reste explicitement autorisé.
+
+| Exemple | Statut |
+|---|---|
+| `ghcr.io/sepp67/projet-gites` | valide |
+| `registry.example.net:5000/projet-grav` | valide (port de registre) |
+| `ghcr.io/sepp67/projet-gites:1.0.7` | **refusé** — utilisez `grav_version` |
+| `ghcr.io/sepp67/projet-gites@sha256:…` | **refusé** — utilisez `grav_digest` (Lot 4) |
+
+**Action** : si `grav_image` contenait un tag ou un digest, déplacez-le vers
+`grav_version` (ou attendez `grav_digest` au Lot 4).

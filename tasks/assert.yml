@@ -26,6 +26,30 @@
       (ex. "1.0.0").
     quiet: true
 
+# grav_image ne doit contenir ni tag final ni digest incorporé (c'est le
+# rôle de grav_version, et de grav_digest à partir du Lot 4) — le port d'un
+# registre privé reste explicitement autorisé (contrat v1.0.1 §5.4), ex.
+# "registry.example.net:5000/projet-grav". Algorithme : un digest ("@") est
+# toujours refusé ; un ":" n'est un tag interdit que s'il apparaît APRÈS le
+# premier "/" (dans le chemin du dépôt) — ou n'importe où si grav_image ne
+# contient aucun "/" (nom nu, pas de registre).
+- name: "Décomposer grav_image pour validation"
+  ansible.builtin.set_fact:
+    _grav_image_has_slash: "{{ '/' in grav_image }}"
+    _grav_image_path_part: "{{ grav_image.split('/', 1)[1] if '/' in grav_image else grav_image }}"
+
+- name: "Valider grav_image (registre avec port autorisé, tag/digest incorporé refusé)"
+  ansible.builtin.assert:
+    that:
+      - "'@' not in grav_image"
+      - "':' not in _grav_image_path_part"
+    fail_msg: >-
+      grav_image="{{ grav_image }}" invalide : ne doit contenir ni tag final
+      (ex. ":1.0.0" — utilisez grav_version) ni digest (ex. "@sha256:…").
+      Un port de registre reste autorisé avant le premier "/", ex.
+      "registry.example.net:5000/projet-grav".
+    quiet: true
+
 - name: "Valider le nom de conteneur (grav_container_name)"
   ansible.builtin.assert:
     that:

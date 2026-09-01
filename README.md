@@ -183,7 +183,7 @@ exécution (`tasks/assert.yml`).
 
 | Variable | Défaut | Description |
 |---|---|---|
-| `grav_image` | `""` (obligatoire) | Dépôt d'image, sans tag ni digest (ex. `ghcr.io/sepp67/projet-gites`) |
+| `grav_image` | `""` (obligatoire) | Dépôt d'image, sans tag final ni digest — un port de registre est autorisé (ex. `ghcr.io/sepp67/projet-gites`, `registry.example.net:5000/projet-grav`) |
 | `grav_version` | `""` (obligatoire) | Tag de version — jamais `"latest"` |
 | `grav_container_name` | `grav-site` | Nom du conteneur/service — validé (`^[A-Za-z0-9][A-Za-z0-9._-]*$`, ni `..` `/` `:`) |
 | `grav_bind_address` | *(aucun — obligatoire)* | Adresse d'écoute de l'hôte — voir "Contrat réseau" |
