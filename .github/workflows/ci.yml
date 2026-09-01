@@ -75,6 +75,23 @@ jobs:
         run: |
           ! grep -rnE 'ansible_host:[[:space:]]*(10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[01])\.)' \
             inventories/
+      - name: "Les renvois « voir README » du code pointent une section existante"
+        run: |
+          missing=0
+          grep -rh 'README' \
+            --include='*.yml' --include='*.yaml' --include='*.cfg' --include='*.j2' --include='Makefile' \
+            -- tasks/ playbooks/ templates/ tests/ defaults/ inventories/ examples/ ansible.cfg Makefile \
+            | grep -viE 'grav-?runtime *README|README de' \
+            | grep -oE 'README(\.md)?[ ,]*[«"][^«"»]+[»"]' \
+            | sed -E 's/.*[«"]([^«"»]+)[»"]/\1/; s/^ +//; s/ +$//' \
+            | sort -u > anchors.txt
+          while IFS= read -r a; do
+            [ -z "$a" ] && continue
+            grep -qF "$a" README.md \
+              || { echo "::error::section README.md manquante : « $a »"; missing=1; }
+          done < anchors.txt
+          rm -f anchors.txt
+          exit $missing
 
   test:
     runs-on: ubuntu-latest
