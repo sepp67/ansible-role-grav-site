@@ -92,10 +92,11 @@ Use the role from a playbook:
         grav_version: "1.0.0"
 ```
 
-Run the deployment:
+Run the deployment. An explicit inventory is **required** — this repository
+targets no VM by default:
 
 ```bash
-ansible-playbook deploy.yml
+ansible-playbook -i <your-inventory> playbooks/deploy.yml
 ```
 
 To update the application, change:

@@ -3,9 +3,10 @@
 # README.md "Utilisation autonome du dépôt". Ce Makefile ne réimplémente
 # rien du rôle ni des playbooks.
 #
-# Surcharge possible sans modifier ce fichier, ex. :
-#   make deploy ARGS="--check --diff"
-#   make deploy ARGS="-i inventories/staging/hosts.yml"
+# Ce dépôt ne cible AUCUNE VM par défaut : les cibles deploy/check/stop/
+# restart échouent tant qu'un inventaire n'est pas fourni via ARGS.
+#   make deploy ARGS="-i inventories/votre-site/hosts.yml"
+#   make deploy ARGS="-i inventories/votre-site/hosts.yml --check --diff"
 
 .PHONY: dependencies lint preflight check deploy stop restart vault-edit vault-view
 
