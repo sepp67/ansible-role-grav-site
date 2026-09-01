@@ -372,7 +372,7 @@ configuration + sauvegarde des volumes) est une opération distincte, hors du r�
 `{{ grav_base_directory }}/deployed_versions.log` conserve l'historique horodaté des
 versions déployées (une ligne par changement réel).
 
-## Contrat avec `grav-runtime`
+## Contrat avec grav-runtime
 
 Ce rôle s'appuie sur le contrat de `grav-runtime` sans le remettre en cause :
 

@@ -29,7 +29,7 @@ grav_http_port: 8080
 
 grav_restart_policy: "unless-stopped"
 
-# Répertoires persistants — voir README.md "grav-runtime" pour le contrat :
+# Répertoires persistants — voir README.md "Persistance" pour le contrat :
 # ce sont les 4 seuls sous-répertoires de user/ que le runtime traite comme
 # persistants et montables séparément.
 grav_pages_directory: "{{ grav_base_directory }}/data/pages"
