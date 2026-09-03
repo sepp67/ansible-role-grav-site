@@ -168,7 +168,27 @@ découpée en `Ajouté` / `Modifié` / `Déprécié` / `Supprimé` / `Corrigé` 
   le rollback. `grav_site_check_path: /admin` (grav-runtime nu renvoie 404 sur `/`
   dès qu'un compte existe).
 
-### À venir (Lots 8–9)
+### Tests fonctionnels et consolidation (Lot 8)
+
+- **Modifié** — `tasks/deploy.yml`, `tasks/healthcheck.yml`, `tasks/verify_docker.yml` :
+  les 4 derniers registres internes sont préfixés `_grav_` (`_grav_compose_result`,
+  `_grav_site_check`, `_grav_docker_engine_check`, `_grav_docker_compose_check`).
+  Interne, sans changement d'interface ni de comportement.
+- **Ajouté** — scénarios Molecule `digest` (T19/T20/T23) et `multi_instance` (T21),
+  jobs CI `molecule-digest` / `molecule-multi-instance` ; test statique
+  `tests/test_consume_via_requirements.yml` (T22) dans `static-checks`.
+- **Ajouté** — images de plateforme Molecule **épinglées par digest d'index OCI**
+  (`molecule/README.md` : digests complets, date, procédure de mise à jour).
+- **Retiré** — scénario `molecule/legacy`. Justification : sur `vfs` (seul
+  storage-driver viable en Docker imbriqué), le bootstrap Grav CLI est
+  prohibitivement lent (> 4 min par compte), le rejeu des 4 phases de `test.yml`
+  n'aboutit pas localement. Il n'apporte **aucune preuve supplémentaire** — les
+  mêmes chemins du rôle sont couverts par `molecule/deploy` + `molecule/digest`, et
+  le job CI `test` rejoue `tests/test*.yml` sur le Docker natif du runner
+  (`overlay2`). `tests/test.yml`, `test_env_encoding.yml` et `test_standalone.yml`
+  **restent suivis et valides** (couche autonome du job `test`).
+
+### À venir (Lot 9)
 
 ## [1.0.1] — 2026-07-25
 
