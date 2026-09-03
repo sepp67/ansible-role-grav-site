@@ -1,9 +1,13 @@
 ---
 # Helper de vérification post-déploiement, inclus après chaque phase de
 # tests/test.yml. Paramètres attendus :
-#   grav_phase_label        — libellé affiché dans le nom de chaque tâche
+#   grav_phase_label         — libellé affiché dans le nom de chaque tâche
 #   grav_expected_version    — version qui doit être réellement en exécution
 #   grav_expected_log_count  — nombre de lignes attendu dans deployed_versions.log
+#
+# Références T08 figées en Phase 1 (test.yml) et relues à chaque phase :
+#   grav_t08_accounts_count  — nombre de fichiers de comptes (doit rester stable)
+#   grav_t08_testadmin_sha   — sha256 de <grav_admin_user>.yaml (pas de réécriture)
 
 - name: "Vérifier l'image réellement en exécution (docker inspect) — {{ grav_phase_label }}"
   ansible.builtin.command:
@@ -20,17 +24,47 @@
       de la version attendue ({{ grav_image }}:{{ grav_expected_version }}).
     quiet: true
 
-- name: "Vérifier que le marqueur persistant est intact — {{ grav_phase_label }}"
+- name: "T08 — relire le marqueur de chacun des 4 volumes persistants — {{ grav_phase_label }}"
   ansible.builtin.command:
-    cmd: "docker exec {{ grav_container_name }} cat /var/www/html/user/pages/marker.txt"
-  register: grav_marker_check
+    cmd: "docker exec {{ grav_container_name }} cat /var/www/html/user/{{ item }}/{{ grav_t08_marker_name }}"
+  register: grav_vol_markers
   changed_when: false
+  loop: [pages, accounts, data, images]
 
-- name: "Confirmer le contenu du marqueur — {{ grav_phase_label }}"
+- name: "T08 — confirmer l'intégrité des 4 marqueurs — {{ grav_phase_label }}"
   ansible.builtin.assert:
     that:
-      - grav_marker_check.stdout | trim == 'marker'
-    fail_msg: "Le marqueur déposé dans user/pages a disparu."
+      - grav_vol_markers.results | map(attribute='stdout') | map('trim') | list == ['pages', 'accounts', 'data', 'images']
+    fail_msg: >-
+      Marqueur(s) de volume absent(s) ou altéré(s) :
+      {{ grav_vol_markers.results | map(attribute='stdout') | list }}
+      (le seed de l'image a écrasé un volume persistant).
+    quiet: true
+
+- name: "T08 — nombre de fichiers de comptes — {{ grav_phase_label }}"
+  ansible.builtin.command:
+    cmd: >-
+      docker exec {{ grav_container_name }} sh -c
+      "ls -1 /var/www/html/user/accounts/*.yaml /var/www/html/user/accounts/*.yml 2>/dev/null | wc -l"
+  register: grav_accounts_count
+  changed_when: false
+
+- name: "T08 — checksum de <grav_admin_user>.yaml — {{ grav_phase_label }}"
+  ansible.builtin.command:
+    cmd: "docker exec {{ grav_container_name }} sha256sum /var/www/html/user/accounts/{{ grav_admin_user }}.yaml"
+  register: grav_testadmin_sha
+  changed_when: false
+
+- name: "T08 — compte administrateur non réécrit (nombre + checksum stables) — {{ grav_phase_label }}"
+  ansible.builtin.assert:
+    that:
+      - (grav_accounts_count.stdout | trim | int) == (grav_t08_accounts_count | int)
+      - (grav_testadmin_sha.stdout | trim | split(' ') | first) == grav_t08_testadmin_sha
+    fail_msg: >-
+      Volume accounts modifié : {{ grav_accounts_count.stdout | trim }} fichier(s)
+      (référence {{ grav_t08_accounts_count }}) ;
+      checksum {{ grav_testadmin_sha.stdout | trim | split(' ') | first }}
+      (référence {{ grav_t08_testadmin_sha }}).
     quiet: true
 
 - name: "Vérifier le marqueur de version .deployed_version — {{ grav_phase_label }}"

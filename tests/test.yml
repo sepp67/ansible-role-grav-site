@@ -1,17 +1,24 @@
 ---
-# Test fonctionnel du rôle : distingue explicitement 4 cas avec deux
+# Test fonctionnel du rôle T04-T08 : distingue explicitement 4 cas avec deux
 # versions publiques réelles et distinctes de grav-runtime (aucun contenu
 # métier), en vérifiant à chaque étape l'image RÉELLEMENT en exécution
 # (docker inspect), la persistance des données et l'idempotence de
 # deployed_versions.log :
 #
-#   1. Déploiement initial de la version A.
-#   2. Redéploiement de la MÊME version A (idempotence attendue : le journal
-#      des versions ne doit PAS grandir).
-#   3. Mise à jour réelle A -> B (le journal DOIT grandir de 1 ligne).
-#   4. Rollback réel B -> A (le journal DOIT grandir de 1 ligne).
+#   1. (T04) Déploiement initial de la version A : compte créé, 4 volumes
+#      initialisés, marqueur distinct déposé dans chacun des 4 volumes.
+#   2. (T05) Redéploiement de la MÊME version A (idempotence attendue : le
+#      journal des versions ne doit PAS grandir ; aucun marqueur modifié ;
+#      compte inchangé).
+#   3. (T06) Mise à jour réelle A -> B (le journal DOIT grandir de 1 ligne ;
+#      conteneur sur B ; 4 marqueurs conservés ; compte conservé).
+#   4. (T07) Rollback réel B -> A (le journal DOIT grandir de 1 ligne ;
+#      conteneur sur A ; 4 marqueurs conservés ; compte conservé).
 #
-# Dans les 4 cas : le marqueur déposé dans user/pages doit survivre.
+# (T08) Dans les 4 phases : les marqueurs des 4 volumes persistants
+# (pages, accounts, data, images) survivent, le nombre de fichiers de comptes
+# et le checksum de <grav_admin_user>.yaml restent stables — le seed de
+# l'image B n'écrase aucune donnée persistante.
 #
 # Prérequis : Docker et le plugin Docker Compose déjà installés sur l'hôte
 # de test (grav_manage_docker: false ici, pour ne pas modifier la machine
@@ -33,8 +40,12 @@
   vars:
     grav_manage_docker: false
     grav_image: "ghcr.io/sepp67/grav-runtime"
-    grav_version_a: "1.0.4"   # image principale (Lot 7)
-    grav_version_b: "1.0.3"   # complément mise à jour / rollback
+    grav_version_a: "1.0.3"   # référence initiale + cible du rollback (T04, T07)
+    grav_version_b: "1.0.4"   # cible de la mise à jour réelle (T06)
+    # Marqueur T08 déposé dans chacun des 4 volumes. Ne se termine JAMAIS par
+    # .yaml / .yml : il ne doit pas pouvoir être compté comme un fichier de
+    # compte (ni par la garde admin_guard, ni par les vérifications T08).
+    grav_t08_marker_name: ".persistence-test-marker"
     grav_container_name: "grav-site-test"
     grav_base_directory: "/tmp/grav-site-test"
     grav_bind_address: "127.0.0.1"
@@ -44,13 +55,53 @@
     # déploiement, les trois variables deviennent obligatoires ; le runtime
     # bootstrape alors le compte et la vérification post-démarrage passe.
     grav_admin_user: "testadmin"
-    grav_admin_password: "test-password-not-a-real-secret"
+    # Doit satisfaire la politique de mot de passe de Grav (>= 8, une
+    # majuscule, une minuscule, un chiffre) : sinon "bin/plugin login
+    # new-user" boucle sur "Password does not pass the minimum requirements"
+    # et le conteneur ne devient jamais healthy. La sous-chaîne
+    # "not-a-real-secret" garde la valeur transparente pour l'audit de
+    # non-fuite (tests/test_no_secret_leak.yml).
+    grav_admin_password: "Test1-not-a-real-secret"
     grav_admin_email: "testadmin@example.test"
     # grav-runtime nu + compte admin bootstrapé : "/" répond 404 (pas de
     # redirection vers /admin dès qu'un compte existe), "/admin" répond 200.
     grav_site_check_path: "/admin"
 
   tasks:
+    # ------------------------------------------------------------------
+    # Pré-vol : le marqueur T08 est inoffensif, et les deux images de
+    # T04-T08 honorent le contrat grav-runtime (login plugin + bin/plugin +
+    # bootstrap-admin.sh). Si une image ne le respecte pas, NE PAS
+    # contourner la garde administrateur : choisir une paire compatible ou
+    # arrêter la préparation (BLOCKED — GRAV-RUNTIME CONTRACT).
+    # ------------------------------------------------------------------
+    - name: "Pré-vol : le nom du marqueur T08 ne se termine pas par .yaml / .yml"
+      ansible.builtin.assert:
+        that:
+          - not (grav_t08_marker_name is search('\\.ya?ml$'))
+        quiet: true
+
+    - name: "Pré-vol : les images A et B honorent le contrat grav-runtime"
+      ansible.builtin.command:
+        argv:
+          - docker
+          - run
+          - --rm
+          - --entrypoint
+          - sh
+          - "{{ grav_image }}:{{ item }}"
+          - -c
+          - >-
+            test -d /var/www/html/user/plugins/login
+            && test -f /var/www/html/bin/plugin
+            && test -f /bootstrap-admin.sh
+      changed_when: false
+      loop:
+        - "{{ grav_version_a }}"
+        - "{{ grav_version_b }}"
+      register: _t08_contract
+      failed_when: _t08_contract.rc != 0
+
     - name: "Nettoyer un éventuel reliquat d'une exécution précédente"
       block:
         - name: "Supprimer un éventuel conteneur/volumes précédents"
@@ -86,24 +137,56 @@
       vars:
         grav_version: "{{ grav_version_a }}"
 
-    - name: "Phase 1 : déposer un marqueur dans les pages persistantes (via le conteneur)"
+    - name: "Phase 1 (T04) : déposer un marqueur distinct dans chacun des 4 volumes"
       ansible.builtin.command:
         cmd: >-
-          docker exec {{ grav_container_name }}
-          sh -c "echo marker > /var/www/html/user/pages/marker.txt"
+          docker exec {{ grav_container_name }} sh -c
+          "printf '%s' '{{ item }}' > /var/www/html/user/{{ item }}/{{ grav_t08_marker_name }}"
+      loop: [pages, accounts, data, images]
       changed_when: true
+
+    - name: "Phase 1 (T04/T08) : figer la référence du volume accounts (comptes + checksum)"
+      block:
+        - name: "Compter les fichiers de comptes initiaux"
+          ansible.builtin.command:
+            cmd: >-
+              docker exec {{ grav_container_name }} sh -c
+              "ls -1 /var/www/html/user/accounts/*.yaml /var/www/html/user/accounts/*.yml 2>/dev/null | wc -l"
+          register: _t08_accounts_baseline
+          changed_when: false
+
+        - name: "Checksum initial de <grav_admin_user>.yaml"
+          ansible.builtin.command:
+            cmd: >-
+              docker exec {{ grav_container_name }}
+              sha256sum /var/www/html/user/accounts/{{ grav_admin_user }}.yaml
+          register: _t08_testadmin_baseline
+          changed_when: false
+
+        - name: "Figer les valeurs de référence T08"
+          ansible.builtin.set_fact:
+            grav_t08_accounts_count: "{{ _t08_accounts_baseline.stdout | trim | int }}"
+            grav_t08_testadmin_sha: "{{ _t08_testadmin_baseline.stdout | trim | split(' ') | first }}"
+
+    - name: "Phase 1 (T04) : le compte administrateur a bien été créé"
+      ansible.builtin.assert:
+        that:
+          - grav_t08_accounts_count | int == 1
+          - grav_t08_testadmin_sha | length == 64
+        fail_msg: "T04 : aucun fichier de compte administrateur après le premier déploiement."
+        quiet: true
 
     - name: "Phase 1 : vérifications"
       ansible.builtin.include_tasks: _verify_phase.yml
       vars:
-        grav_phase_label: "Phase 1 — déploiement initial A"
+        grav_phase_label: "Phase 1 (T04) — déploiement initial A"
         grav_expected_version: "{{ grav_version_a }}"
         grav_expected_log_count: 1
 
     # ------------------------------------------------------------------
-    # Phase 2 : redéploiement de la MÊME version A (idempotence)
+    # Phase 2 (T05) : redéploiement de la MÊME version A (idempotence)
     # ------------------------------------------------------------------
-    - name: "Phase 2 : redéployer la même version A"  # noqa: role-name[path]
+    - name: "Phase 2 (T05) : redéployer la même version A"  # noqa: role-name[path]
       ansible.builtin.include_role:
         name: "{{ playbook_dir }}/.."
         public: true
@@ -113,14 +196,14 @@
     - name: "Phase 2 : vérifications"
       ansible.builtin.include_tasks: _verify_phase.yml
       vars:
-        grav_phase_label: "Phase 2 — redéploiement identique A (idempotence)"
+        grav_phase_label: "Phase 2 (T05) — redéploiement identique A (idempotence)"
         grav_expected_version: "{{ grav_version_a }}"
         grav_expected_log_count: 1
 
     # ------------------------------------------------------------------
-    # Phase 3 : mise à jour réelle A -> B
+    # Phase 3 (T06) : mise à jour réelle A -> B
     # ------------------------------------------------------------------
-    - name: "Phase 3 : mettre à jour vers la version B"  # noqa: role-name[path]
+    - name: "Phase 3 (T06) : mettre à jour vers la version B"  # noqa: role-name[path]
       ansible.builtin.include_role:
         name: "{{ playbook_dir }}/.."
         public: true
@@ -130,14 +213,14 @@
     - name: "Phase 3 : vérifications"
       ansible.builtin.include_tasks: _verify_phase.yml
       vars:
-        grav_phase_label: "Phase 3 — mise à jour réelle A -> B"
+        grav_phase_label: "Phase 3 (T06) — mise à jour réelle A -> B"
         grav_expected_version: "{{ grav_version_b }}"
         grav_expected_log_count: 2
 
     # ------------------------------------------------------------------
-    # Phase 4 : rollback réel B -> A
+    # Phase 4 (T07) : rollback réel B -> A
     # ------------------------------------------------------------------
-    - name: "Phase 4 : revenir (rollback) à la version A"  # noqa: role-name[path]
+    - name: "Phase 4 (T07) : revenir (rollback) à la version A"  # noqa: role-name[path]
       ansible.builtin.include_role:
         name: "{{ playbook_dir }}/.."
         public: true
@@ -147,7 +230,7 @@
     - name: "Phase 4 : vérifications"
       ansible.builtin.include_tasks: _verify_phase.yml
       vars:
-        grav_phase_label: "Phase 4 — rollback réel B -> A"
+        grav_phase_label: "Phase 4 (T07) — rollback réel B -> A"
         grav_expected_version: "{{ grav_version_a }}"
         grav_expected_log_count: 3
 

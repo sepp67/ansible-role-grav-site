@@ -38,7 +38,11 @@
     grav_standalone_image: "ghcr.io/sepp67/grav-runtime"
     grav_standalone_version: "1.0.4"
     # Identifiants fictifs : requis par la garde administrateur
-    # (tasks/admin_guard.yml) tant que le volume "accounts" est vide.
+    # (tasks/admin_guard.yml) tant que le volume "accounts" est vide. Le mot
+    # de passe satisfait la politique Grav (>= 8, majuscule, minuscule,
+    # chiffre) — sinon "bin/plugin login new-user" boucle et le conteneur
+    # ne devient jamais healthy. "not-a-real-secret" garde la valeur
+    # transparente pour l'audit de non-fuite.
     grav_standalone_extra_args: >-
       -e ansible_become=false
       -e grav_manage_docker=false
@@ -49,7 +53,7 @@
       -e grav_bind_address=127.0.0.1
       -e grav_http_port={{ grav_standalone_http_port }}
       -e grav_admin_user=standaloneadmin
-      -e grav_admin_password=standalone-not-a-real-secret
+      -e grav_admin_password=Standalone1-not-a-real-secret
       -e grav_admin_email=standaloneadmin@example.test
       -e grav_site_check_path=/admin
       -e grav_healthcheck_start_period={{ grav_standalone_start_period | default('10s') }}
