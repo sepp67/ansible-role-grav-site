@@ -19,7 +19,7 @@ driver:
 
 platforms:
   - name: grav-l7-deploy-debian12
-    image: geerlingguy/docker-debian12-ansible:latest
+    image: geerlingguy/docker-debian12-ansible@sha256:a906d69671f93666731d196add52a2447966303d8bc398da8fd01bdb543909dc
     command: /usr/lib/systemd/systemd
     privileged: true
     cgroupns_mode: host

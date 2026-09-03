@@ -17,7 +17,7 @@ driver:
 
 platforms:
   - name: grav-l7-install-debian12
-    image: geerlingguy/docker-debian12-ansible:latest
+    image: geerlingguy/docker-debian12-ansible@sha256:a906d69671f93666731d196add52a2447966303d8bc398da8fd01bdb543909dc
     command: /usr/lib/systemd/systemd
     privileged: true
     cgroupns_mode: host
@@ -28,7 +28,7 @@ platforms:
       - /run/lock
     pre_build_image: true
   - name: grav-l7-install-ubuntu2204
-    image: geerlingguy/docker-ubuntu2204-ansible:latest
+    image: geerlingguy/docker-ubuntu2204-ansible@sha256:9dea87fba8ef05c32a68d03443f171362c191b528e277a01a28cb1c1d7c20b8c
     command: /usr/lib/systemd/systemd
     privileged: true
     cgroupns_mode: host
@@ -39,7 +39,7 @@ platforms:
       - /run/lock
     pre_build_image: true
   - name: grav-l7-install-ubuntu2404
-    image: geerlingguy/docker-ubuntu2404-ansible:latest
+    image: geerlingguy/docker-ubuntu2404-ansible@sha256:625d7dfdad134fd25c28873a8b8b81c4907ecb57c66f20e9b599582ef376b46c
     command: /usr/lib/systemd/systemd
     privileged: true
     cgroupns_mode: host
