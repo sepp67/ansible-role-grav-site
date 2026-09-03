@@ -6,12 +6,109 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 Versionnement : [SemVer](https://semver.org/lang/fr/). Les versions correspondent aux
 tags Git du dépôt.
 
-## [Non publié] — préparation de `2.0.0`
+## [2.0.0] — non publiée
 
-Refonte du rôle selon le contrat architectural approuvé (v1.0.1). Cette section sera
-découpée en `Ajouté` / `Modifié` / `Déprécié` / `Supprimé` / `Corrigé` au fil des lots.
+Version majeure : refonte du rôle selon le contrat architectural approuvé (v1.0.1),
+menée en dix lots (0 à 9). Toutes les ruptures sont inventoriées dans
+[`docs/MIGRATION.md`](docs/MIGRATION.md) ; la conformité exigence par exigence dans
+[`docs/CONFORMITE-REQ.md`](docs/CONFORMITE-REQ.md).
 
-### Sécurisation (Lot 0)
+### Ajouté
+
+- `grav_digest` — épinglage immuable optionnel (`""` ou `sha256:` + 64 hexa). La
+  référence Docker effective devient `grav_image@grav_digest` si fourni, jamais
+  `image:version@digest`.
+- `grav_force_pull` (`false` par défaut) — `true` force `pull: always`.
+- `grav_admin_type` (`""` / `admin` / `api` / `both`) — arbre de permissions du
+  compte bootstrapé, émis comme `GRAV_ADMIN_TYPE` si non vide.
+- `vars/main.yml` — chemins dérivés de `grav_base_directory` calculés par le rôle,
+  référence Docker effective (`_grav_effective_reference`), adresse du contrôle HTTP
+  dérivée de `grav_bind_address` (`_grav_site_check_host`).
+- `.deployed_state.yml` — état de déploiement structuré (`image`, `declared_version`,
+  `digest`, `effective_reference`, `deployed_at`).
+- Garde administrateur avant toute mutation (`tasks/admin_guard.yml`) et vérification
+  après démarrage (`tasks/verify_admin_account.yml`).
+- Nettoyage automatique de `.last_failure.log` au retour au vert
+  (`tasks/clear_failure_diagnostic.yml`).
+- Couverture **Molecule** (`molecule/install`, `deploy`, `pull`, `digest`,
+  `multi_instance`), `requirements-test.txt`, jobs CI dédiés.
+- Suite de tests statiques (sans Docker) : `test_assertions`, `test_traceability`,
+  `test_failure_log_lifecycle`, `test_admin_guard`, `test_persistence_untouched`,
+  `test_consume_via_requirements` (T22), `test_no_secret_leak`.
+- `CHANGELOG.md`, `docs/MIGRATION.md`, `docs/TEST-RESULTS.md`,
+  `docs/CONFORMITE-REQ.md`, `inventories/example/`, `examples/`.
+- README : sections « Contrat réseau », « Contrat administrateur », « Persistance »,
+  « Rollback », « Systèmes supportés », « Résolution du rôle », « Préflight ».
+- Garde-fous CI : aucun lien symbolique hors dépôt, aucune adresse RFC 1918 dans
+  `inventories/`, chaque renvoi « voir README » pointe une ancre existante,
+  `grav_version` jamais `latest`, aucun `vault.yml` réel, aucune référence au
+  `control-repository` ni à un chemin local, storage driver Docker OverlayFS pour
+  T04–T08.
+
+### Modifié
+
+- **RUPTURE** — `grav_bind_address` **obligatoire** (plus de défaut `127.0.0.1`),
+  validée en forme : IPv4 littérale stricte ou `0.0.0.0`. **L'IPv6 est refusée** en
+  `2.0.0` (hors périmètre, documenté).
+- **RUPTURE** — validation de `grav_image` durcie : tag final ou digest incorporé
+  refusés (port de registre toujours autorisé).
+- **RUPTURE** — les **clés** de `grav_extra_environment` sont validées
+  (`^GRAV_[A-Z0-9_]+$`) et ne peuvent plus écraser une variable gérée par le rôle.
+- **RUPTURE** — garde administrateur : si le volume `accounts` ne contient aucun
+  fichier de compte, `grav_admin_user` / `_password` / `_email` deviennent
+  obligatoires (ensemble) ; échec avant toute mutation.
+- **RUPTURE (support)** — **Debian 11 (bullseye) retirée**. Plateformes officielles :
+  Debian 12, Ubuntu 22.04, Ubuntu 24.04.
+- Politique de récupération d'image : `always` → `missing` par défaut.
+- `grav_site_check_host` : défaut `127.0.0.1` → `""` (dérivé de `grav_bind_address`).
+- Fenêtre d'attente du healthcheck : sortie de boucle sur un **verdict Docker
+  définitif** (`healthy` / `unhealthy`), jamais sur `starting` ; défauts
+  `grav_deploy_wait_retries` `30`→`60`, `_delay` `2`→`5` (fenêtre `300 s`) ; plancher
+  `120 s` imposé dans `assert.yml`.
+- Horodatage de la traçabilité : `now(utc=true)` (heure contrôleur) — fonctionne sans
+  `gather_facts`.
+- `.deployed_version` contient désormais la **référence effective** ;
+  `deployed_versions.log` gagne une colonne `declared_version`.
+- Registres internes préfixés `_grav_` (`tasks/deploy.yml`, `healthcheck.yml`,
+  `verify_docker.yml`, `version.yml`).
+- `ansible.cfg` ne définit plus d'inventaire par défaut ; `Makefile` exige `-i`.
+- CI : runners épinglés `ubuntu-24.04` ; le job `test` exécute **T04–T08**
+  (déploiement / idempotence / mise à jour A→B / rollback B→A / persistance des
+  4 volumes) après avoir vérifié un storage driver OverlayFS performant (jamais `vfs`).
+
+### Déprécié
+
+- Surcharge directe de `grav_pages_directory`, `grav_accounts_directory`,
+  `grav_data_directory`, `grav_images_directory`, `grav_secret_directory` : toujours
+  honorée, mais émet un avertissement `[DEPRECATED]` si la valeur diffère du chemin
+  dérivé de `grav_base_directory`. Retrait éventuel en `3.0.0`.
+
+### Supprimé
+
+- Défaut de `grav_bind_address` (`127.0.0.1`) et défaut de `grav_site_check_host`.
+- Lien symbolique suivi `.ansible/roles/sepp67.grav_site` (chemin local absolu).
+- `inventories/production/` — profil d'exploitation réel de `projet-gites`, déplacé
+  vers un dépôt d'orchestration de l'opérateur.
+- Scénario `molecule/legacy` — prohibitivement lent en Docker imbriqué, sans preuve
+  supplémentaire (les mêmes chemins sont couverts par `molecule/deploy` +
+  `molecule/digest` et par le job CI `test`).
+- Debian 11 (bullseye) de `meta/main.yml`.
+
+### Corrigé
+
+- Healthcheck : plus de faux échec pendant la phase `starting` légitime.
+- Chemin d'échec (`rescue`) : les logs du conteneur ne sont plus déversés dans la
+  sortie Ansible ; capturés sous `no_log` et écrits dans `.last_failure.log`
+  (`0600`, `root:root`), supprimés au retour au vert.
+- `grav.env` : `owner: root` / `group: root` explicites.
+- Garde-fou CI « renvois voir README » : les titres de section et les renvois du code
+  concordent.
+
+---
+
+### Détail par lot (genèse)
+
+#### Sécurisation (Lot 0)
 
 - **Modifié** — `ansible.cfg` ne définit plus d'inventaire par défaut. Un inventaire
   explicite (`-i`) est désormais requis pour tout playbook autonome.
@@ -24,7 +121,7 @@ découpée en `Ajouté` / `Modifié` / `Déprécié` / `Supprimé` / `Corrigé` 
 - **Ajouté** — garde-fous CI : aucun lien symbolique hors dépôt, aucune adresse de VM
   privée (RFC 1918) dans `inventories/`.
 
-### Documentation et séparation (Lots 1–2)
+#### Documentation et séparation (Lots 1–2)
 
 - **Modifié** — README réécrit en français, aligné sur le contrat v1.0.1, ancres de
   section rétablies, inventaire des variables publié.
@@ -36,9 +133,9 @@ découpée en `Ajouté` / `Modifié` / `Déprécié` / `Supprimé` / `Corrigé` 
 - **Modifié** — CI et `Makefile` référencent `inventories/example/` ; les cibles
   `vault-*` / `preflight` du Makefile sont paramétrées par `VAULT` / `ARGS`.
 
-### Interface et validations (Lot 3)
+#### Interface et validations (Lot 3)
 
-#### Ruptures d'interface — `2.0.0` (voir [`docs/MIGRATION.md`](docs/MIGRATION.md))
+##### Ruptures d'interface — `2.0.0` (voir [`docs/MIGRATION.md`](docs/MIGRATION.md))
 
 - **RUPTURE** — `grav_bind_address` est désormais **obligatoire** (plus de défaut
   `127.0.0.1`) ; validée en forme (IPv4 stricte, `0.0.0.0`/`::`, pré-contrôle IPv6
@@ -54,7 +151,7 @@ découpée en `Ajouté` / `Modifié` / `Déprécié` / `Supprimé` / `Corrigé` 
   `_TYPE`, `GRAV_TIMEZONE`). Une clé en minuscules, sans préfixe `GRAV_`, ou réservée,
   était acceptée avant.
 
-#### Additifs et dépréciations
+##### Additifs et dépréciations
 
 - **Ajouté** — `grav_admin_type` (`''`/`admin`/`api`/`both`, défaut `''` = le runtime
   choisit `both` ; voir `grav-runtime` `docker/bootstrap-admin.sh` lignes 62-69),
@@ -67,7 +164,7 @@ découpée en `Ajouté` / `Modifié` / `Déprécié` / `Supprimé` / `Corrigé` 
   rejouant uniquement `tasks/assert.yml`, sans Docker. Intégré à la CI
   (`static-checks`).
 
-### Déploiement et traçabilité (Lot 4)
+#### Déploiement et traçabilité (Lot 4)
 
 - **Ajouté** — `grav_digest` (`""` ou `sha256:` + 64 hexa) : épinglage immuable
   optionnel. La référence Docker effective devient `grav_image@grav_digest` si un
@@ -92,7 +189,7 @@ découpée en `Ajouté` / `Modifié` / `Déprécié` / `Supprimé` / `Corrigé` 
   contrôleur) au lieu de `ansible_date_time` : la traçabilité **fonctionne sans
   `gather_facts`** (contrat §11.6). Registres de `tasks/version.yml` préfixés `_grav_`.
 
-### Réseau et santé (Lot 5)
+#### Réseau et santé (Lot 5)
 
 - **RUPTURE** — `grav_bind_address` : validation restreinte à l'**IPv4 stricte**
   (octets 0–255, sans zéro initial, 4 octets) ou `0.0.0.0`. L'**IPv6 est refusée** en
@@ -121,7 +218,7 @@ découpée en `Ajouté` / `Modifié` / `Déprécié` / `Supprimé` / `Corrigé` 
   jamais le fichier, ne touche aucun répertoire persistant. Couvert par
   `tests/test_failure_log_lifecycle.yml` (sans Docker, intégré à la CI).
 
-### Bootstrap administrateur et persistance (Lot 6)
+#### Bootstrap administrateur et persistance (Lot 6)
 
 - **RUPTURE** — garde administrateur avant toute mutation (`tasks/admin_guard.yml`,
   contrat v1.0.1 §9.3.1). Si le rôle ne constate **aucun fichier de compte persistant**
@@ -144,7 +241,7 @@ découpée en `Ajouté` / `Modifié` / `Déprécié` / `Supprimé` / `Corrigé` 
   deux gardes n'utilisent que `stat` et `find` (jamais `cat` / `slurp` / `from_yaml`),
   sous `no_log`.
 
-### Tests Docker et plateformes (Lot 7)
+#### Tests Docker et plateformes (Lot 7)
 
 - **RUPTURE (support)** — **Debian 11 (bullseye) retirée** des plateformes
   officiellement supportées de `2.0.0`. `meta/main.yml` ne déclare plus que
@@ -164,11 +261,12 @@ découpée en `Ajouté` / `Modifié` / `Déprécié` / `Supprimé` / `Corrigé` 
     → `pull: always` avec tentative réelle (T17/T18) ;
   - `legacy` : rejeu isolé de `tests/test*.yml` (Docker-in-Docker).
 - **Modifié** — `tests/test.yml` / `test_env_encoding.yml` / `test_standalone.yml`
-  utilisent `grav-runtime:1.0.4` (image principale) ; `1.0.3` sert la mise à jour /
-  le rollback. `grav_site_check_path: /admin` (grav-runtime nu renvoie 404 sur `/`
-  dès qu'un compte existe).
+  utilisent des versions publiques réelles de `grav-runtime` (le couple T04–T08 est
+  fixé au Lot 9 : `1.0.3` initial, `1.0.4` mise à jour).
+  `grav_site_check_path: /admin` (grav-runtime nu renvoie 404 sur `/` dès qu'un
+  compte existe).
 
-### Tests fonctionnels et consolidation (Lot 8)
+#### Tests fonctionnels et consolidation (Lot 8)
 
 - **Modifié** — `tasks/deploy.yml`, `tasks/healthcheck.yml`, `tasks/verify_docker.yml` :
   les 4 derniers registres internes sont préfixés `_grav_` (`_grav_compose_result`,
@@ -191,7 +289,32 @@ découpée en `Ajouté` / `Modifié` / `Déprécié` / `Supprimé` / `Corrigé` 
   (`overlay2`). `tests/test.yml`, `test_env_encoding.yml` et `test_standalone.yml`
   **restent suivis et valides** (couche autonome du job `test`).
 
-### À venir (Lot 9)
+#### Consolidation et publication (Lot 9)
+
+- **Ajouté** — `docs/CONFORMITE-REQ.md` : matrice de conformité `REQ-*` finale
+  (exigence → statut → preuve), synthèse de tous les lots.
+- **Modifié** — `tests/test.yml` + `tests/_verify_phase.yml` : T08 étendu aux **4
+  volumes persistants** (`pages`, `accounts`, `data`, `images`) — un marqueur distinct
+  par volume, relu à chaque phase (initial, idempotent, mise à jour A→B, rollback
+  B→A) ; contrôle du nombre de fichiers de comptes et du checksum de
+  `<grav_admin_user>.yaml` (le seed de l'image B n'écrase aucune donnée persistante).
+  Pré-vol : les deux images honorent le contrat `grav-runtime` (login plugin,
+  `bin/plugin`, `bootstrap-admin.sh`). Couple de versions T04–T08 : `A = 1.0.3`
+  (initial + cible du rollback), `B = 1.0.4` (mise à jour).
+- **Corrigé** — `tests/test.yml` et `tests/test_standalone.yml` : le mot de passe
+  administrateur fictif ne satisfaisait pas la politique de mot de passe de Grav
+  (aucune majuscule, aucun chiffre) — `bin/plugin login new-user` bouclait alors
+  indéfiniment sur « Password does not pass the minimum requirements » et le
+  conteneur ne devenait jamais `healthy`. Valeurs conformes désormais
+  (`Test1-not-a-real-secret`, `Standalone1-not-a-real-secret`), toujours
+  transparentes pour l'audit de non-fuite.
+- **Modifié** — `.github/workflows/ci.yml` : runners épinglés `ubuntu-24.04` ; le job
+  `test` vérifie d'abord `docker version` / `docker compose version` / `docker info`
+  et refuse tout storage driver autre que `overlay2` ou `overlayfs` (jamais `vfs`)
+  avant d'exécuter T04–T08.
+- **Modifié** — `README.md`, `CHANGELOG.md`, `docs/MIGRATION.md`,
+  `docs/TEST-RESULTS.md` : consolidation finale pour `2.0.0` (découpage normalisé du
+  changelog, tableau des ruptures complété, mentions « à venir » obsolètes retirées).
 
 ## [1.0.1] — 2026-07-25
 
