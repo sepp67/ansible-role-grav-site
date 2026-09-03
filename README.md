@@ -24,12 +24,14 @@ Le `control-repository` (Caddy, domaines, TLS) est **parallèle** à cette chaî
 publie sur Internet des instances déjà joignables sur le réseau local, sans dépendre
 de ce dépôt ni de `grav-sites-ops`.
 
-> **Évolution vers `v2.0.0`** — ce rôle est en cours de refonte selon un contrat
-> architectural approuvé. `grav_bind_address` est déjà obligatoire (voir
-> "Contrat réseau"). Restent à venir : support d'un digest, politique de pull
-> `missing`. Voir [`CHANGELOG.md`](CHANGELOG.md) et
-> [`docs/MIGRATION.md`](docs/MIGRATION.md). Ce README décrit le comportement
-> **actuel** du rôle.
+> **`v2.0.0` (en préparation)** — version majeure. La refonte selon le contrat
+> architectural approuvé est terminée : `grav_bind_address` obligatoire (IPv4),
+> `grav_digest`, politique de pull `missing`, garde administrateur, traçabilité
+> structurée, couverture de tests complète. Les ruptures sont inventoriées dans
+> [`docs/MIGRATION.md`](docs/MIGRATION.md) ; la conformité exigence par exigence
+> dans [`docs/CONFORMITE-REQ.md`](docs/CONFORMITE-REQ.md) ; le détail dans
+> [`CHANGELOG.md`](CHANGELOG.md). Tant que le tag `v2.0.0` n'est pas publié,
+> épinglez `v1.0.1`. Ce README décrit le comportement de `2.0.0`.
 
 ---
 
@@ -518,11 +520,14 @@ ansible-playbook -i inventory test_standalone.yml
   dans `/tmp`, aucun Docker, **`gather_facts: false`**) — `.deployed_state.yml`
   structuré, `.deployed_version` = référence effective, `deployed_versions.log`
   append-only (idempotence, mise à jour, rollback A→B→A, déploiement par digest).
-- `tests/test.yml` : premier déploiement, redéploiement idempotent, mise à jour et
-  rollback avec deux versions publiques réelles de `grav-runtime` (`1.0.4` principale,
-  `1.0.3` pour la mise à jour), en vérifiant à chaque étape l'image en exécution, la
-  survie d'un marqueur dans `user/pages` et le nombre de lignes de
-  `deployed_versions.log`.
+- `tests/test.yml` (T04–T08) : premier déploiement, redéploiement idempotent, mise à
+  jour `1.0.3` → `1.0.4` et rollback `1.0.4` → `1.0.3` (deux versions publiques
+  réelles de `grav-runtime`), en vérifiant à chaque phase l'image en exécution, la
+  **survie d'un marqueur distinct dans chacun des 4 volumes persistants**
+  (`pages`, `accounts`, `data`, `images`), la stabilité du compte administrateur
+  (nombre de fichiers + checksum de `<user>.yaml`) et le nombre de lignes de
+  `deployed_versions.log`. En CI, le job `test` exige au préalable un storage driver
+  Docker OverlayFS (jamais `vfs`).
 - `tests/test_env_encoding.yml` : un mot de passe admin contenant `$ # " ' \` et des
   espaces ressort **strictement identique** dans le conteneur (comparaison masquée).
 - `tests/test_standalone.yml` : exécute réellement les playbooks de `playbooks/` en
@@ -545,6 +550,7 @@ l'en-tête de ce fichier. Conteneurs **privilégiés + systemd**, Docker-in-Dock
 | `molecule test -s pull` | `pull: missing` sans consultation du registre, `grav_force_pull: true` → `pull: always` (T17/T18) | Debian 12 |
 
 Résultats détaillés T01–T23 : [`docs/TEST-RESULTS.md`](docs/TEST-RESULTS.md).
+Conformité exigence par exigence : [`docs/CONFORMITE-REQ.md`](docs/CONFORMITE-REQ.md).
 Images de plateforme épinglées par digest : [`molecule/README.md`](molecule/README.md).
 
 Vérifications statiques (CI, sans Docker) : `ansible-lint`, `--syntax-check` des
@@ -560,8 +566,10 @@ privée, aucune référence au `control-repository` ni à un chemin local, renvo
 
 - Installation de Docker limitée à Debian/Ubuntu.
 - Pas d'authentification registre (`docker login`) — l'image doit être publique.
-- La validation IPv6 de `grav_bind_address` reste un pré-contrôle permissif
-  (validation complète et rendu Docker avec crochets prévus au Lot 5).
+- `grav_bind_address` : **IPv4 uniquement** en `2.0.0`. L'IPv6 (dont `::`) est
+  refusée avec un message explicite — liez l'instance en IPv4 et laissez le reverse
+  proxy terminer l'IPv6. Voir [`docs/MIGRATION.md`](docs/MIGRATION.md) et
+  [`docs/CONFORMITE-REQ.md`](docs/CONFORMITE-REQ.md) (limites résiduelles).
 
 ## Licence
 
