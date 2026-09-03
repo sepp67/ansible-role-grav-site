@@ -70,6 +70,10 @@ jobs:
         run: |
           cd tests
           ansible-playbook -i inventory test_consume_via_requirements.yml
+      - name: "Audit de non-fuite des secrets (aucun Docker)"
+        run: |
+          cd tests
+          ansible-playbook -i inventory test_no_secret_leak.yml
       - name: "grav_version de l'exemple jamais 'latest'"
         run: |
           ! grep -E '^\s*grav_version:\s*"?latest"?\s*$' \

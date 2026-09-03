@@ -81,6 +81,9 @@
       - (grav_l8_manifest_digest in (_t19_repodigests.stdout | default(''))) or (_t19_repodigests.rc != 0)
       # .deployed_version = référence effective par digest
       - (_t19_depver.content | b64decode | trim) == _eff_ref
+      # non-fuite : le mot de passe fictif n'est ni dans le compose ni dans .deployed_version
+      - grav_l8_admin_password not in _compose_txt
+      - grav_l8_admin_password not in (_t19_depver.content | b64decode)
     fail_msg: >-
       T19 : .Config.Image='{{ _t19_config_image.stdout | trim }}' ;
       .Image='{{ _t19_container_imageid.stdout | trim }}' ;
@@ -88,8 +91,10 @@
     success_msg: >-
       T19 OK — compose + .Config.Image + .deployed_version == {{ _eff_ref }} ;
       .Image conteneur == ID local {{ grav_l8_local_image_id }} ;
-      RepoDigests contient {{ grav_l8_manifest_digest }} ; aucune pseudo-référence.
+      RepoDigests contient {{ grav_l8_manifest_digest }} ; aucune pseudo-référence ;
+      aucun mot de passe dans le compose ni .deployed_version.
     quiet: true
+  no_log: true
 
 - name: "T19 — teardown"
   ansible.builtin.include_tasks: _teardown.yml

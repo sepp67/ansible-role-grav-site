@@ -76,6 +76,8 @@
       - inst.other_marker not in _ic_marker.stdout
       # HTTP répond sur SON port
       - _ic_http.status == 200
+      # non-fuite : le mot de passe fictif de l'instance n'est pas dans son état structuré
+      - inst.password not in (_ic_state.content | b64decode)
     fail_msg: >-
       T21/{{ inst.name }} : collision ou fuite —
       projet={{ _project }}, ports={{ _ic_ports.stdout }},

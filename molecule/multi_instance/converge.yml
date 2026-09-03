@@ -83,6 +83,7 @@
           effective_reference: "{{ grav_l8_image }}@{{ grav_l8_digest }}"
           digest: "{{ grav_l8_digest }}"
           declared_version: "1.0.4"
+          password: "{{ grav_l8_pw_a }}"
 
     - name: "T21 — vérifier l'instance B"
       ansible.builtin.include_tasks: tasks/_instance_checks.yml
@@ -97,6 +98,7 @@
           effective_reference: "{{ grav_l8_image }}:1.0.4"
           digest: ""
           declared_version: "1.0.4"
+          password: "{{ grav_l8_pw_b }}"
 
     # --- Redéploiement de A : B doit rester intact (aucun effet de bord) ---
     - name: "T21 — capturer l'empreinte de B avant redéploiement de A"
