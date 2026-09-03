@@ -24,6 +24,7 @@ roles:
 | §7 | `grav_image` : tag ou digest incorporé **refusé** | 3 (appliqué) | Déplacer le tag vers `grav_version` |
 | §9 | `grav_extra_environment` : **clés validées** (`^GRAV_[A-Z0-9_]+$`, pas de clé réservée) | 3 (appliqué) | Renommer/retirer les clés non conformes |
 | §3 | Politique de pull : `always` → `missing` | 4 (appliqué) | `grav_force_pull: true` pour retrouver l'ancien comportement |
+| §6 | **Garde administrateur** : si le volume `accounts` ne contient aucun fichier de compte, `grav_admin_user` / `_password` / `_email` deviennent **obligatoires** (ensemble) ; échec **avant** toute mutation. Une instance ne peut plus démarrer non initialisée. | 6 (appliqué) | Fournir les trois `grav_admin_*` (Vault) au premier déploiement et les y **conserver** ; sans objet si le volume `accounts` est déjà peuplé |
 | §2 | `grav_site_check_host` : défaut `127.0.0.1` → **dérivé** de `grav_bind_address` | 5 (appliqué) | Retirer une surcharge redondante ; sinon aucune action |
 
 Les dépréciations (§5, sans échec) et les ajouts (§4 `grav_digest`, §8 `grav_admin_type`)
