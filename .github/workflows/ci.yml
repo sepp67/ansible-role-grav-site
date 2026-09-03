@@ -66,6 +66,10 @@ jobs:
         run: |
           cd tests
           ansible-playbook -i inventory test_persistence_untouched.yml
+      - name: "T22 — consommation via requirements.yml depuis un projet tiers (aucun Docker)"
+        run: |
+          cd tests
+          ansible-playbook -i inventory test_consume_via_requirements.yml
       - name: "grav_version de l'exemple jamais 'latest'"
         run: |
           ! grep -E '^\s*grav_version:\s*"?latest"?\s*$' \

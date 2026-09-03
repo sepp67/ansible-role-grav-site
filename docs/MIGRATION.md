@@ -407,3 +407,35 @@ Docker n'y est **ni testée ni garantie** : la couverture Molecule de la CI
 **Action** : si une VM tourne encore sous Debian 11, planifiez sa montée en
 Debian 12 avant de passer le rôle en `2.0.0`, ou installez Docker Engine + le plugin
 Compose vous-même et déployez avec `grav_manage_docker: false`.
+
+---
+
+## 13. Consommation via `requirements.yml` (Lot 8 — testé, T22)
+
+Le rôle s'installe et s'appelle **par son nom** `sepp67.grav_site` (dérivé de
+`meta/main.yml` : `namespace: sepp67`, `role_name: grav_site`), sans dépendre de
+l'arborescence du dépôt d'origine ni d'aucun chemin absolu / lien symbolique.
+
+**Cible `2.0.0`** (une fois le tag publié) :
+
+```yaml
+# requirements.yml de votre dépôt d'orchestration
+roles:
+  - name: sepp67.grav_site
+    src: git+https://github.com/sepp67/ansible-role-grav-site.git
+    scm: git
+    version: v2.0.0
+```
+
+```yaml
+# playbook
+- hosts: grav_servers
+  roles:
+    - sepp67.grav_site
+```
+
+**Différence avec le test T22** : `tests/test_consume_via_requirements.yml` utilise
+`src: git+file://<racine du dépôt>` et `version: <SHA de commit>` — le **tag
+`v2.0.0` n'existe pas encore** (les tags `v1.0.0` / `v1.0.1` existants sont
+antérieurs à la refonte et ne doivent pas être utilisés). Le tag `v2.0.0` sera créé
+au moment de la publication, **après** l'intégration de tous les lots.

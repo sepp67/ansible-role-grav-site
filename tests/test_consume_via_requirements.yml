@@ -1,0 +1,180 @@
+---
+# T22 (contrat v1.0.1 §14 / REQ-042) — le rôle est consommable via un
+# requirements.yml depuis un projet TIERS, et s'appelle par son NOM installé,
+# sans dépendre de l'arborescence du dépôt d'origine ni d'aucun chemin
+# absolu / lien symbolique / sous-module.
+#
+# Aucun Docker. Le dépôt est découvert dynamiquement (git rev-parse), le
+# requirements.yml est GÉNÉRÉ dans un répertoire temporaire (aucun chemin
+# absolu local n'est committé), le rôle est installé dans un roles_path
+# temporaire, appelé par son nom, et tout est nettoyé en fin d'exécution.
+#
+# Référence Git utilisée : git+file:// + SHA de commit courant. En production
+# 2.0.0 le requirements.yml pointera « src: git+https://…  version: v2.0.0 » —
+# le tag v2.0.0 n'existe pas encore et n'est pas créé ici (voir docs/MIGRATION.md).
+#
+# Usage : cd tests && ansible-playbook -i inventory test_consume_via_requirements.yml
+
+- name: "T22 — consommation via requirements.yml depuis un projet tiers"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    _t22_installed_name: "sepp67.grav_site"   # meta/main.yml : namespace.role_name
+
+  tasks:
+    - name: "T22 — découvrir la racine du dépôt et le commit courant (dynamique)"  # noqa: command-instead-of-module
+      ansible.builtin.command:
+        cmd: "{{ item }}"
+        chdir: "{{ playbook_dir }}"
+      register: _t22_git
+      changed_when: false
+      loop:
+        - "git rev-parse --show-toplevel"
+        - "git rev-parse HEAD"
+
+    - name: "T22 — mémoriser racine du dépôt / SHA"
+      ansible.builtin.set_fact:
+        _t22_repo: "{{ _t22_git.results[0].stdout | trim }}"
+        _t22_sha: "{{ _t22_git.results[1].stdout | trim }}"
+
+    - name: "T22 — cohérence du nom installé avec meta/main.yml"
+      ansible.builtin.assert:
+        that:
+          - (lookup('file', _t22_repo ~ '/meta/main.yml') | from_yaml).galaxy_info.namespace == 'sepp67'
+          - (lookup('file', _t22_repo ~ '/meta/main.yml') | from_yaml).galaxy_info.role_name == 'grav_site'
+        fail_msg: "T22 : meta/main.yml (namespace/role_name) ne correspond pas à {{ _t22_installed_name }}."
+        quiet: true
+
+    - name: "T22 — le dépôt ne suit AUCUN lien symbolique (REQ-042)"  # noqa: command-instead-of-module
+      ansible.builtin.command:
+        cmd: "git ls-files -s"
+        chdir: "{{ _t22_repo }}"
+      register: _t22_lsfiles
+      changed_when: false
+
+    - name: "T22 — assertion : aucun mode 120000 (lien symbolique)"
+      ansible.builtin.assert:
+        that:
+          - _t22_lsfiles.stdout_lines | select('match', '^120000 ') | list | length == 0
+        fail_msg: "T22 : le dépôt contient un lien symbolique suivi par Git."
+        quiet: true
+
+    - name: "T22 — créer un projet tiers temporaire"
+      ansible.builtin.tempfile:
+        state: directory
+        prefix: grav-consumer-
+      register: _t22_proj
+
+    - name: "T22 — générer requirements.yml (dans le temp, git+file:// + SHA)"
+      ansible.builtin.copy:
+        dest: "{{ _t22_proj.path }}/requirements.yml"
+        mode: "0644"
+        content: |
+          ---
+          roles:
+            - name: {{ _t22_installed_name }}
+              src: git+file://{{ _t22_repo }}
+              scm: git
+              version: {{ _t22_sha }}
+
+    - name: "T22 — générer le playbook du projet tiers (appel par NOM installé)"
+      ansible.builtin.copy:
+        dest: "{{ _t22_proj.path }}/site.yml"
+        mode: "0644"
+        content: |
+          ---
+          - name: "Projet tiers — déploiement d'un site Grav"
+            hosts: localhost
+            connection: local
+            gather_facts: false
+            roles:
+              - {{ _t22_installed_name }}
+
+    - name: "T22 — générer un playbook qui rejoue assert + admin_guard du rôle installé"
+      ansible.builtin.copy:
+        dest: "{{ _t22_proj.path }}/by_name.yml"
+        mode: "0644"
+        content: |
+          ---
+          - name: "Rôle installé : validation + garde (aucun Docker, aucune mutation)"
+            hosts: localhost
+            connection: local
+            gather_facts: false
+            tasks:
+              - name: "assert.yml (par nom)"
+                ansible.builtin.import_role:
+                  name: {{ _t22_installed_name }}
+                  tasks_from: assert
+              - name: "admin_guard.yml (par nom)"
+                ansible.builtin.import_role:
+                  name: {{ _t22_installed_name }}
+                  tasks_from: admin_guard
+
+    - name: "T22 — ansible-galaxy install dans un roles_path temporaire"
+      ansible.builtin.command:
+        cmd: "ansible-galaxy role install -r requirements.yml -p {{ _t22_proj.path }}/roles"
+        chdir: "{{ _t22_proj.path }}"
+      register: _t22_install
+      changed_when: "'was installed successfully' in _t22_install.stdout"
+
+    - name: "T22 — le répertoire créé porte exactement le nom installé"
+      ansible.builtin.stat:
+        path: "{{ _t22_proj.path }}/roles/{{ _t22_installed_name }}/tasks/main.yml"
+      register: _t22_installed_dir
+
+    - name: "T22 — syntax-check du playbook tiers (résolution par nom)"
+      ansible.builtin.command:
+        cmd: "ansible-playbook --syntax-check site.yml"
+        chdir: "{{ _t22_proj.path }}"
+      environment:
+        ANSIBLE_ROLES_PATH: "{{ _t22_proj.path }}/roles"
+      register: _t22_syntax
+      changed_when: false
+
+    - name: "T22 — exécuter assert.yml + admin_guard.yml du rôle INSTALLÉ, par son nom"
+      ansible.builtin.command:
+        cmd: >-
+          ansible-playbook by_name.yml
+          -e grav_image=ghcr.io/example/site
+          -e grav_version=1.0.0
+          -e grav_bind_address=127.0.0.1
+          -e grav_admin_user=t22admin
+          -e grav_admin_password=t22-not-a-real-secret
+          -e grav_admin_email=t22admin@example.test
+        chdir: "{{ _t22_proj.path }}"
+      environment:
+        ANSIBLE_ROLES_PATH: "{{ _t22_proj.path }}/roles"
+      register: _t22_byname
+      changed_when: false
+
+    - name: "T22 — assertions"
+      ansible.builtin.assert:
+        that:
+          - "'was installed successfully' in _t22_install.stdout"
+          - _t22_installed_dir.stat.exists
+          - _t22_syntax.rc == 0
+          - _t22_byname.rc == 0
+          - "'t22-not-a-real-secret' not in _t22_byname.stdout"
+        fail_msg: >-
+          T22 : install='{{ _t22_install.stdout | regex_search('installed successfully|ERROR.*') }}' ;
+          répertoire installé={{ _t22_installed_dir.stat.exists }} ;
+          syntax rc={{ _t22_syntax.rc }} ; by_name rc={{ _t22_byname.rc }}.
+        success_msg: >-
+          T22 OK — le rôle s'installe sous « {{ _t22_installed_name }} » depuis
+          git+file://@{{ _t22_sha[:12] }}, se résout et s'exécute (assert +
+          admin_guard) PAR SON NOM, sans dépendre de l'arborescence d'origine.
+        quiet: true
+
+    - name: "T22 — supprimer le projet tiers temporaire"
+      ansible.builtin.file:
+        path: "{{ _t22_proj.path }}"
+        state: absent
+
+    - name: "T22 — bilan"
+      ansible.builtin.debug:
+        msg: >-
+          T22 : requirements.yml généré dans un temp (aucun chemin absolu
+          committé), rôle installé dans un roles_path temporaire, appelé par
+          « {{ _t22_installed_name }} », ressources supprimées.
