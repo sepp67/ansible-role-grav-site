@@ -1,0 +1,91 @@
+---
+# Vérifie une instance (dict `inst`) — contrainte Lot 8 §6 :
+# nom de conteneur, projet Compose, port, répertoire de base, 4 volumes
+# persistants, compte administrateur, état structuré, marqueur de données
+# propre à l'instance (et absent de l'autre).
+
+- name: "T21 — instance : conteneur présent et running"
+  ansible.builtin.command:
+    cmd: "docker inspect --format '{{ '{{' }}.State.Status{{ '}}' }}:{{ '{{' }}index .Config.Labels \"com.docker.compose.project\"{{ '}}' }}' {{ inst.name }}"
+  register: _ic_inspect
+  changed_when: false
+
+- name: "T21 — instance : port publié"
+  ansible.builtin.command:
+    cmd: "docker inspect --format '{{ '{{' }}json .NetworkSettings.Ports{{ '}}' }}' {{ inst.name }}"
+  register: _ic_ports
+  changed_when: false
+
+- name: "T21 — instance : les 4 répertoires persistants existent"
+  ansible.builtin.stat:
+    path: "{{ inst.base }}/data/{{ item }}"
+  register: _ic_vols
+  loop: [pages, accounts, data, images]
+
+- name: "T21 — instance : fichier de compte administrateur"
+  ansible.builtin.find:
+    paths: "{{ inst.base }}/data/accounts"
+    patterns: ["*.yaml", "*.yml"]
+    file_type: file
+  register: _ic_accounts
+  no_log: true
+
+- name: "T21 — instance : état structuré"
+  ansible.builtin.slurp:
+    src: "{{ inst.base }}/.deployed_state.yml"
+  register: _ic_state
+
+- name: "T21 — instance : marqueur de données dans le conteneur"
+  ansible.builtin.command:
+    cmd: "docker exec {{ inst.name }} cat /var/www/html/user/pages/instance-marker.txt"
+  register: _ic_marker
+  changed_when: false
+
+- name: "T21 — instance : contrôle HTTP sur son port"
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ inst.port }}/admin"
+    status_code: [200]
+  register: _ic_http
+
+- name: "T21 — instance : assertions d'isolation"
+  vars:
+    _state: "{{ _ic_state.content | b64decode | from_yaml }}"
+    _status: "{{ _ic_inspect.stdout | trim | split(':') | first }}"
+    _project: "{{ _ic_inspect.stdout | trim | split(':') | last }}"
+    _published: "{{ (_ic_ports.stdout | from_json)['80/tcp'] | default([]) }}"
+  ansible.builtin.assert:
+    that:
+      # nom de conteneur + projet Compose = nom de l'instance
+      - _status == 'running'
+      - _project == inst.name
+      # port publié = le port de l'instance, sur 127.0.0.1 uniquement
+      - _published | length == 1
+      - _published[0].HostPort == (inst.port | string)
+      - _published[0].HostIp == '127.0.0.1'
+      # 4 volumes persistants sous SON répertoire de base
+      - _ic_vols.results | map(attribute='stat.exists') | list == [true, true, true, true]
+      # compte administrateur = SON utilisateur (fichier <user>.yaml)
+      - (_ic_accounts.matched | int) == 1
+      - (_ic_accounts.files | first).path | basename == (inst.user ~ '.yaml')
+      # état structuré propre à l'instance
+      - _state.declared_version == inst.declared_version
+      - _state.digest == inst.digest
+      - _state.effective_reference == inst.effective_reference
+      # marqueur de données PROPRE à l'instance, l'autre marqueur ABSENT
+      - _ic_marker.stdout | trim == inst.marker
+      - inst.other_marker not in _ic_marker.stdout
+      # HTTP répond sur SON port
+      - _ic_http.status == 200
+    fail_msg: >-
+      T21/{{ inst.name }} : collision ou fuite —
+      projet={{ _project }}, ports={{ _ic_ports.stdout }},
+      compte={{ _ic_accounts.matched }} fichier(s),
+      état={{ _ic_state.content | b64decode }},
+      marqueur={{ _ic_marker.stdout | trim }}.
+    success_msg: >-
+      T21/{{ inst.name }} OK — conteneur+projet {{ inst.name }}, port {{ inst.port }},
+      4 volumes sous {{ inst.base }}, compte {{ inst.user }}.yaml, état
+      effective_reference={{ inst.effective_reference }}, marqueur {{ inst.marker }}
+      (pas {{ inst.other_marker }}).
+    quiet: true
+  no_log: true

@@ -1,0 +1,155 @@
+---
+- name: "Converge — deux instances du rôle dans UN MÊME playbook (T21)"
+  hosts: all
+  gather_facts: false
+
+  vars:
+    grav_l8_role: "{{ lookup('env', 'MOLECULE_PROJECT_DIRECTORY') }}"
+    grav_l8_image: "ghcr.io/sepp67/grav-runtime"
+
+  tasks:
+    - name: "Charger le digest résolu par prepare.yml"
+      ansible.builtin.include_vars:
+        file: "{{ lookup('env', 'MOLECULE_EPHEMERAL_DIRECTORY') }}/digest.yml"
+
+    - name: "Répertoires neufs pour A et B"
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop: [/opt/grav-a, /opt/grav-b]
+
+    - name: "Mots de passe fictifs distincts (une seule fois)"
+      ansible.builtin.set_fact:
+        grav_l8_pw_a: "molpw-a-{{ lookup('ansible.builtin.password', '/dev/null length=20 chars=ascii_letters,digits') }}"
+        grav_l8_pw_b: "molpw-b-{{ lookup('ansible.builtin.password', '/dev/null length=20 chars=ascii_letters,digits') }}"
+      no_log: true
+
+    # --- Instance A : déployée PAR DIGEST, port 18191, user mol-a ---
+    - name: "T21 — déployer l'instance A (grav-a, par digest)"  # noqa: role-name[path]
+      ansible.builtin.include_role:
+        name: "{{ grav_l8_role }}"
+      vars:
+        grav_manage_docker: false
+        grav_image: "{{ grav_l8_image }}"
+        grav_version: "1.0.4"
+        grav_digest: "{{ grav_l8_digest }}"
+        grav_container_name: "grav-a"
+        grav_base_directory: /opt/grav-a
+        grav_bind_address: "127.0.0.1"
+        grav_http_port: 18191
+        grav_site_check_path: "/admin"
+        grav_admin_user: "mol-a"
+        grav_admin_password: "{{ grav_l8_pw_a }}"
+        grav_admin_email: "mol-a@molecule.test"
+
+    # --- Instance B : déployée PAR TAG, port 18192, user mol-b ---
+    - name: "T21 — déployer l'instance B (grav-b, par tag) dans le MÊME play"  # noqa: role-name[path]
+      ansible.builtin.include_role:
+        name: "{{ grav_l8_role }}"
+      vars:
+        grav_manage_docker: false
+        grav_image: "{{ grav_l8_image }}"
+        grav_version: "1.0.4"
+        grav_container_name: "grav-b"
+        grav_base_directory: /opt/grav-b
+        grav_bind_address: "127.0.0.1"
+        grav_http_port: 18192
+        grav_site_check_path: "/admin"
+        grav_admin_user: "mol-b"
+        grav_admin_password: "{{ grav_l8_pw_b }}"
+        grav_admin_email: "mol-b@molecule.test"
+
+    - name: "T21 — déposer un marqueur de données PROPRE à chaque instance"
+      ansible.builtin.command:
+        cmd: >-
+          docker exec {{ item.c }} sh -c
+          "echo {{ item.m }} > /var/www/html/user/pages/instance-marker.txt"
+      loop:
+        - {c: "grav-a", m: "MARKER-A"}
+        - {c: "grav-b", m: "MARKER-B"}
+      changed_when: true
+
+    # --- Vérifications par instance (contrainte Lot 8 §6) ---
+    - name: "T21 — vérifier l'instance A"
+      ansible.builtin.include_tasks: tasks/_instance_checks.yml
+      vars:
+        inst:
+          name: "grav-a"
+          base: /opt/grav-a
+          port: 18191
+          user: "mol-a"
+          marker: "MARKER-A"
+          other_marker: "MARKER-B"
+          effective_reference: "{{ grav_l8_image }}@{{ grav_l8_digest }}"
+          digest: "{{ grav_l8_digest }}"
+          declared_version: "1.0.4"
+
+    - name: "T21 — vérifier l'instance B"
+      ansible.builtin.include_tasks: tasks/_instance_checks.yml
+      vars:
+        inst:
+          name: "grav-b"
+          base: /opt/grav-b
+          port: 18192
+          user: "mol-b"
+          marker: "MARKER-B"
+          other_marker: "MARKER-A"
+          effective_reference: "{{ grav_l8_image }}:1.0.4"
+          digest: ""
+          declared_version: "1.0.4"
+
+    # --- Redéploiement de A : B doit rester intact (aucun effet de bord) ---
+    - name: "T21 — capturer l'empreinte de B avant redéploiement de A"
+      ansible.builtin.find:
+        paths: /opt/grav-b/data
+        recurse: true
+        get_checksum: true
+        hidden: true
+      register: _t21_b_before
+      no_log: true
+
+    - name: "T21 — redéployer l'instance A"  # noqa: role-name[path]
+      ansible.builtin.include_role:
+        name: "{{ grav_l8_role }}"
+      vars:
+        grav_manage_docker: false
+        grav_image: "{{ grav_l8_image }}"
+        grav_version: "1.0.4"
+        grav_digest: "{{ grav_l8_digest }}"
+        grav_container_name: "grav-a"
+        grav_base_directory: /opt/grav-a
+        grav_bind_address: "127.0.0.1"
+        grav_http_port: 18191
+        grav_site_check_path: "/admin"
+
+    - name: "T21 — empreinte de B après redéploiement de A"
+      ansible.builtin.find:
+        paths: /opt/grav-b/data
+        recurse: true
+        get_checksum: true
+        hidden: true
+      register: _t21_b_after
+      no_log: true
+
+    - name: "T21 — B strictement inchangée par le redéploiement de A"
+      ansible.builtin.assert:
+        that:
+          - (_t21_b_before.files | map(attribute='checksum') | sort)
+            == (_t21_b_after.files | map(attribute='checksum') | sort)
+          - (_t21_b_before.files | map(attribute='path') | sort)
+            == (_t21_b_after.files | map(attribute='path') | sort)
+        fail_msg: "T21 : le redéploiement de A a modifié les données de B."
+        success_msg: "T21 OK — redéploiement de A sans effet de bord sur B (chemins + sommes identiques)."
+        quiet: true
+
+    - name: "T21 — B tourne toujours après le redéploiement de A"
+      ansible.builtin.command: "docker inspect --format '{{ '{{' }}.State.Status{{ '}}' }}' grav-b"
+      register: _t21_b_status
+      changed_when: false
+      failed_when: _t21_b_status.stdout | trim != 'running'
+
+    - name: "T21 — teardown des deux instances"
+      ansible.builtin.include_tasks: tasks/_teardown.yml
+      loop: [/opt/grav-a, /opt/grav-b]
+      loop_control:
+        loop_var: _td_dir

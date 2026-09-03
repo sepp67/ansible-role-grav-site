@@ -207,3 +207,21 @@ jobs:
           ansible-galaxy collection install 'community.docker:>=3.10.2' 'ansible.posix:>=1.4.0'
       - name: "molecule test -s digest"
         run: molecule test -s digest
+
+  molecule-multi-instance:
+    # T21 — deux invocations du rôle dans un même playbook sur le même hôte ;
+    # isolation (conteneurs, projets Compose, ports, volumes, comptes, état).
+    # DinD (Debian 12).
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - name: "Installer Molecule + le driver Docker"
+        run: |
+          pip install -r requirements-test.txt
+          ansible-galaxy collection install 'community.docker:>=3.10.2' 'ansible.posix:>=1.4.0'
+      - name: "molecule test -s multi_instance"
+        run: molecule test -s multi_instance

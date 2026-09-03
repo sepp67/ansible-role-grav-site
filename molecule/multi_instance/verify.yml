@@ -1,0 +1,24 @@
+---
+- name: "Verify — aucune instance de test ne subsiste"
+  hosts: all
+  gather_facts: false
+
+  tasks:
+    - name: "Conteneurs grav-a / grav-b résiduels"
+      ansible.builtin.command: "docker ps -a --filter name=grav- --format '{{ '{{' }}.Names{{ '}}' }}'"
+      register: _v_ps
+      changed_when: false
+
+    - name: "Répertoires /opt/grav-a /opt/grav-b résiduels"
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      register: _v_dirs
+      loop: [/opt/grav-a, /opt/grav-b]
+
+    - name: "Assertion : converge a tout nettoyé"
+      ansible.builtin.assert:
+        that:
+          - _v_ps.stdout | trim == ''
+          - _v_dirs.results | map(attribute='stat.exists') | list == [false, false]
+        success_msg: "T21 : les deux instances de test ont été nettoyées."
+        quiet: true

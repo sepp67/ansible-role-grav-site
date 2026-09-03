@@ -10,12 +10,14 @@ supporté).
 | `install` | T02, T03 — installation de Docker + idempotence, 3 plateformes |
 | `deploy` | T09–T16 — bootstrap admin, `admin_guard`, `grav_bind_address`, verdict de santé, `.last_failure.log` |
 | `digest` | T19, T20, T23 — déploiement par digest, traçabilité structurée en Docker réel, `gather_facts: false` |
+| `multi_instance` | T21 — deux invocations du rôle dans **un même playbook**, isolation vérifiée |
 | `pull` | T17, T18 — politique de pull `missing` / `always` |
 
 ```bash
 molecule test -s install
 molecule test -s deploy
 molecule test -s digest
+molecule test -s multi_instance
 molecule test -s pull
 ```
 

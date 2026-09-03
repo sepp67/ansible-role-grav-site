@@ -1,0 +1,48 @@
+---
+# Scénario molecule "multi-instance" — T21 (contrat v1.0.1 §3).
+#
+# DEUX invocations du même rôle DANS UN MÊME PLAYBOOK (converge.yml), sur le
+# même hôte, tout distinct : noms de conteneurs, projets Compose, ports,
+# répertoires de base, volumes persistants, comptes administrateurs.
+#
+# Objectif : prouver l'absence de collision ET que les dérivés internes du
+# rôle (_grav_effective_reference, _grav_site_check_host, set_fact internes)
+# sont recalculés pour chaque instance — aucune valeur de « grav-a » ne fuit
+# vers « grav-b ».
+#
+# Docker-in-Docker (Debian 12, privilégié, systemd, storage-driver vfs).
+
+role_name_check: 1
+
+driver:
+  name: docker
+
+platforms:
+  - name: grav-l8-multi-debian12
+    image: geerlingguy/docker-debian12-ansible@sha256:a906d69671f93666731d196add52a2447966303d8bc398da8fd01bdb543909dc
+    command: /usr/lib/systemd/systemd
+    privileged: true
+    cgroupns_mode: host
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+    tmpfs:
+      - /run
+      - /run/lock
+    pre_build_image: true
+
+provisioner:
+  name: ansible
+
+dependency:
+  name: galaxy
+  enabled: false
+
+scenario:
+  name: multi_instance
+  test_sequence:
+    - destroy
+    - create
+    - prepare
+    - converge
+    - verify
+    - destroy
