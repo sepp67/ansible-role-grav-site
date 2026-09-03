@@ -190,3 +190,20 @@ jobs:
           ansible-galaxy collection install 'community.docker:>=3.10.2' 'ansible.posix:>=1.4.0'
       - name: "molecule test -s pull"
         run: molecule test -s pull
+
+  molecule-digest:
+    # T19 / T20 / T23 — déploiement par digest, traçabilité structurée sur un
+    # déploiement réel, rôle joué avec gather_facts: false. DinD (Debian 12).
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - name: "Installer Molecule + le driver Docker"
+        run: |
+          pip install -r requirements-test.txt
+          ansible-galaxy collection install 'community.docker:>=3.10.2' 'ansible.posix:>=1.4.0'
+      - name: "molecule test -s digest"
+        run: molecule test -s digest

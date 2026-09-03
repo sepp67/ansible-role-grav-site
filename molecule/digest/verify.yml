@@ -1,0 +1,25 @@
+---
+- name: "Verify — aucune instance de test ne subsiste + audit non-fuite"
+  hosts: all
+  gather_facts: false
+
+  tasks:
+    - name: "Conteneurs / répertoires de test résiduels"
+      ansible.builtin.command: "docker ps -a --filter name=grav-t --format '{{ '{{' }}.Names{{ '}}' }}'"
+      register: _grav_v_ps
+      changed_when: false
+
+    - name: "Répertoires d'instance résiduels"
+      ansible.builtin.find:
+        paths: /opt
+        patterns: "grav-t*"
+        file_type: directory
+      register: _grav_v_dirs
+
+    - name: "Assertion : converge a tout nettoyé"
+      ansible.builtin.assert:
+        that:
+          - _grav_v_ps.stdout | trim == ''
+          - _grav_v_dirs.matched | int == 0
+        success_msg: "T19 / T20 : instances de test nettoyées."
+        quiet: true

@@ -1,0 +1,97 @@
+---
+# T19 — déploiement par digest. Preuves distinctes (contrainte Lot 8 §1) :
+#   1. ligne image du compose = référence effective EXACTE (grav_image@sha256) ;
+#   2. .Config.Image du conteneur = cette même référence effective ;
+#   3. .Image du conteneur (ID local) = l'ID local de l'image du digest ;
+#   4. RepoDigests de l'image contient le digest de manifeste attendu ;
+#   5. aucune pseudo-référence image:version@digest nulle part.
+#
+# Trois notions de « digest » (voir debug de prepare.yml) :
+#   - digest de MANIFESTE OCI (registre) = ce que RepoDigests expose, = grav_digest ;
+#   - ID LOCAL de l'image = sha256 du blob de config JSON = .Image du conteneur ;
+#   - référence enregistrée dans .Config.Image = grav_image@<digest de manifeste>.
+
+- name: "T19 — répertoire neuf"
+  ansible.builtin.file:
+    path: /opt/grav-t19
+    state: absent
+
+- name: "T19 — déployer par DIGEST (grav_digest renseigné)"  # noqa: role-name[path]
+  ansible.builtin.include_role:
+    name: "{{ grav_l8_role }}"
+  vars:
+    grav_manage_docker: false
+    grav_image: "{{ grav_l8_runtime_ref }}"
+    grav_version: "{{ grav_l8_version }}"
+    grav_digest: "{{ grav_l8_manifest_digest }}"
+    grav_container_name: "grav-t19"
+    grav_base_directory: /opt/grav-t19
+    grav_bind_address: "127.0.0.1"
+    grav_http_port: 18190
+    grav_site_check_path: "/admin"
+    grav_admin_user: "{{ grav_l8_admin_user }}"
+    grav_admin_password: "{{ grav_l8_admin_password }}"
+    grav_admin_email: "{{ grav_l8_admin_email }}"
+
+- name: "T19 — lire le compose rendu"
+  ansible.builtin.slurp:
+    src: /opt/grav-t19/docker-compose.yml
+  register: _t19_compose
+
+- name: "T19 — .Config.Image du conteneur"
+  ansible.builtin.command: "docker inspect --format '{{ '{{' }}.Config.Image{{ '}}' }}' grav-t19"
+  register: _t19_config_image
+  changed_when: false
+
+- name: "T19 — .Image (ID local) du conteneur"
+  ansible.builtin.command: "docker inspect --format '{{ '{{' }}.Image{{ '}}' }}' grav-t19"
+  register: _t19_container_imageid
+  changed_when: false
+
+- name: "T19 — RepoDigests de l'image épinglée"
+  ansible.builtin.command: "docker inspect --format '{{ '{{' }}json .RepoDigests{{ '}}' }}' {{ grav_l8_repodigest_full }}"
+  register: _t19_repodigests
+  changed_when: false
+  failed_when: false
+
+- name: "T19 — .deployed_version"
+  ansible.builtin.slurp:
+    src: /opt/grav-t19/.deployed_version
+  register: _t19_depver
+
+- name: "T19 — assertions (5 preuves distinctes)"
+  vars:
+    _eff_ref: "{{ grav_l8_runtime_ref }}@{{ grav_l8_manifest_digest }}"
+    _compose_txt: "{{ _t19_compose.content | b64decode }}"
+    _img_line: 'image: "{{ grav_l8_runtime_ref }}@{{ grav_l8_manifest_digest }}"'
+    _pseudo_a: "{{ grav_l8_runtime_ref }}:{{ grav_l8_version }}@"
+    _pseudo_b: ":{{ grav_l8_version }}@sha256"
+  ansible.builtin.assert:
+    that:
+      # 1. ligne image du compose = référence effective exacte
+      - _img_line in _compose_txt
+      # 5. aucune pseudo-référence image:version@digest
+      - _pseudo_a not in _compose_txt
+      - _pseudo_b not in _compose_txt
+      # 2. .Config.Image du conteneur = référence effective
+      - (_t19_config_image.stdout | trim) == _eff_ref
+      # 3. le conteneur tourne l'image locale correspondant à la référence
+      - (_t19_container_imageid.stdout | trim) == grav_l8_local_image_id
+      # 4. RepoDigests contient le digest attendu (quand Docker l'expose)
+      - (grav_l8_manifest_digest in (_t19_repodigests.stdout | default(''))) or (_t19_repodigests.rc != 0)
+      # .deployed_version = référence effective par digest
+      - (_t19_depver.content | b64decode | trim) == _eff_ref
+    fail_msg: >-
+      T19 : .Config.Image='{{ _t19_config_image.stdout | trim }}' ;
+      .Image='{{ _t19_container_imageid.stdout | trim }}' ;
+      attendu effective_reference='{{ _eff_ref }}', ID local='{{ grav_l8_local_image_id }}'.
+    success_msg: >-
+      T19 OK — compose + .Config.Image + .deployed_version == {{ _eff_ref }} ;
+      .Image conteneur == ID local {{ grav_l8_local_image_id }} ;
+      RepoDigests contient {{ grav_l8_manifest_digest }} ; aucune pseudo-référence.
+    quiet: true
+
+- name: "T19 — teardown"
+  ansible.builtin.include_tasks: _teardown.yml
+  vars:
+    _td_dir: /opt/grav-t19

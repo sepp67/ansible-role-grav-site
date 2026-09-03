@@ -1,0 +1,42 @@
+---
+# gather_facts: false pour TOUT le converge (T23) : le rôle est joué avec
+# grav_manage_docker: false (Docker déjà installé par prepare.yml), donc
+# tasks/docker.yml — le seul consommateur de facts — est sauté.
+- name: "Converge — digest, traçabilité, gather_facts:false (T19 / T20 / T23)"
+  hosts: all
+  gather_facts: false
+
+  vars:
+    grav_l8_role: "{{ lookup('env', 'MOLECULE_PROJECT_DIRECTORY') }}"
+    grav_l8_admin_user: "mol-d8"
+    grav_l8_admin_email: "mol-d8@molecule.test"
+
+  tasks:
+    - name: "Charger les références d'image résolues par prepare.yml"
+      ansible.builtin.include_vars:
+        file: "{{ lookup('env', 'MOLECULE_EPHEMERAL_DIRECTORY') }}/image-refs.yml"
+
+    - name: "Générer le mot de passe fictif (une seule fois)"
+      ansible.builtin.set_fact:
+        grav_l8_admin_password: "molpw-{{ lookup('ansible.builtin.password', '/dev/null length=24 chars=ascii_letters,digits') }}"
+      no_log: true
+
+    - name: "T19 — déploiement par digest + preuves Docker"
+      ansible.builtin.include_tasks: tasks/t19_digest_deploy.yml
+
+    - name: "T20 — traçabilité structurée sur un déploiement réel"
+      ansible.builtin.include_tasks: tasks/t20_traceability.yml
+
+    - name: "T23 — le converge a été joué sans facts d'OS/plateforme"
+      ansible.builtin.assert:
+        that:
+          - ansible_facts['os_family'] is not defined
+          - ansible_facts['distribution'] is not defined
+          - ansible_facts['architecture'] is not defined
+          - ansible_facts['date_time'] is not defined
+        fail_msg: "T23 : des facts ont été collectés — le converge devait tourner gather_facts: false."
+        success_msg: >-
+          T23 OK — rôle joué avec gather_facts: false, aucun fact d'OS/date ;
+          la traçabilité (T20) a bien renseigné deployed_at via une source de
+          temps indépendante (now(utc=true)).
+        quiet: true

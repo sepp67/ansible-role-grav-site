@@ -1,0 +1,72 @@
+---
+- name: "Prepare — Docker-in-Docker + résolution du digest de grav-runtime"
+  hosts: all
+  gather_facts: true
+
+  vars:
+    _grav_l8_runtime_ref: "ghcr.io/sepp67/grav-runtime"
+    _grav_l8_version: "1.0.4"
+
+  tasks:
+    - name: "Créer /etc/docker"
+      ansible.builtin.file:
+        path: /etc/docker
+        state: directory
+        mode: "0755"
+
+    - name: "Forcer le storage-driver vfs (overlay imbriqué impossible)"
+      ansible.builtin.copy:
+        content: "{\n  \"storage-driver\": \"vfs\"\n}\n"
+        dest: /etc/docker/daemon.json
+        mode: "0644"
+
+    - name: "Installer Docker Engine (tasks/docker.yml)"  # noqa: role-name[path]
+      ansible.builtin.include_role:
+        name: "{{ lookup('env', 'MOLECULE_PROJECT_DIRECTORY') }}"
+        tasks_from: docker
+
+    - name: "Attendre le daemon Docker imbriqué (vfs)"
+      ansible.builtin.command: "docker info --format '{{ '{{' }}.Driver{{ '}}' }}'"
+      register: _grav_l8_dind
+      until: _grav_l8_dind.rc == 0 and (_grav_l8_dind.stdout | trim) == 'vfs'
+      retries: 20
+      delay: 2
+      changed_when: false
+
+    - name: "Tirer l'image grav-runtime et son digest"
+      ansible.builtin.command: "docker pull {{ _grav_l8_runtime_ref }}:{{ _grav_l8_version }}"
+      changed_when: true
+
+    - name: "Résoudre le RepoDigest réel de l'image"
+      ansible.builtin.command:
+        cmd: "docker inspect --format '{{ '{{' }}index .RepoDigests 0{{ '}}' }}' {{ _grav_l8_runtime_ref }}:{{ _grav_l8_version }}"
+      register: _grav_l8_repodigest
+      changed_when: false
+
+    - name: "Résoudre l'ID local (config digest) de l'image"
+      ansible.builtin.command:
+        cmd: "docker inspect --format '{{ '{{' }}.Id{{ '}}' }}' {{ _grav_l8_runtime_ref }}:{{ _grav_l8_version }}"
+      register: _grav_l8_imageid
+      changed_when: false
+
+    - name: "Persister les références pour converge.yml (répertoire éphémère Molecule, côté contrôleur)"
+      ansible.builtin.copy:
+        dest: "{{ lookup('env', 'MOLECULE_EPHEMERAL_DIRECTORY') }}/image-refs.yml"
+        mode: "0644"
+        content: |
+          # Généré par prepare.yml — références de l'image grav-runtime de test.
+          grav_l8_runtime_ref: "{{ _grav_l8_runtime_ref }}"
+          grav_l8_version: "{{ _grav_l8_version }}"
+          # ex. "ghcr.io/sepp67/grav-runtime@sha256:…" -> on extrait "sha256:…"
+          grav_l8_manifest_digest: "{{ _grav_l8_repodigest.stdout | trim | regex_replace('^.*@', '') }}"
+          grav_l8_repodigest_full: "{{ _grav_l8_repodigest.stdout | trim }}"
+          grav_l8_local_image_id: "{{ _grav_l8_imageid.stdout | trim }}"
+      delegate_to: localhost
+
+    - name: "Rappel des trois notions de « digest » (documentation)"
+      ansible.builtin.debug:
+        msg:
+          - "Digest de MANIFESTE OCI (registre) : {{ _grav_l8_repodigest.stdout | trim }}"
+          - "ID LOCAL de l'image (sha256 du blob de config) : {{ _grav_l8_imageid.stdout | trim }}"
+          - "grav_digest = le digest de manifeste ; .Config.Image du conteneur = grav_image@<manifeste> ;"
+          - ".Image du conteneur = l'ID local ci-dessus (résolution locale de la référence)."

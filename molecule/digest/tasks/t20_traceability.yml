@@ -1,0 +1,212 @@
+---
+# T20 — traçabilité structurée sur un déploiement RÉEL (contrainte Lot 8 §11).
+# Cinq états successifs dans un seul répertoire d'instance :
+#   1. premier état (déploiement par digest de 1.0.4) ;
+#   2. second passage STRICTEMENT identique -> journal inchangé (append-only,
+#      pas de fausse entrée) ;
+#   3. changement de grav_version, MÊME digest -> declared_version mis à jour,
+#      +1 ligne, effective_reference INCHANGÉE ;
+#   4. changement de digest (digest de 1.0.3) -> effective_reference change,
+#      +1 ligne, declared_version = 1.0.3 ;
+#   5. rollback vers le digest de 1.0.4 (A -> B -> A) -> effective_reference
+#      revient, +1 ligne.
+#
+# La matrice hors Docker (tests/test_traceability.yml, gather_facts: false)
+# couvre déjà ces cas de façon exhaustive ; ici on prouve que l'état est
+# écrit correctement par un déploiement Docker RÉEL.
+
+- name: "T20 — répertoire neuf + résoudre le digest de 1.0.3"
+  block:
+    - name: "T20 — répertoire neuf"
+      ansible.builtin.file:
+        path: /opt/grav-t20
+        state: absent
+    - name: "T20 — tirer 1.0.3 et résoudre son digest"
+      ansible.builtin.command: "docker pull {{ grav_l8_runtime_ref }}:1.0.3"
+      changed_when: true
+    - name: "T20 — digest de 1.0.3"
+      ansible.builtin.command:
+        cmd: "docker inspect --format '{{ '{{' }}index .RepoDigests 0{{ '}}' }}' {{ grav_l8_runtime_ref }}:1.0.3"
+      register: _t20_d103
+      changed_when: false
+
+- name: "T20 — état 1 : déploiement par digest (1.0.4)"  # noqa: role-name[path]
+  ansible.builtin.include_role:
+    name: "{{ grav_l8_role }}"
+  vars:
+    grav_manage_docker: false
+    grav_image: "{{ grav_l8_runtime_ref }}"
+    grav_version: "1.0.4"
+    grav_digest: "{{ grav_l8_manifest_digest }}"
+    grav_container_name: "grav-t20"
+    grav_base_directory: /opt/grav-t20
+    grav_bind_address: "127.0.0.1"
+    grav_http_port: 18191
+    grav_site_check_path: "/admin"
+    grav_admin_user: "{{ grav_l8_admin_user }}"
+    grav_admin_password: "{{ grav_l8_admin_password }}"
+    grav_admin_email: "{{ grav_l8_admin_email }}"
+
+- name: "T20 — état 1 : lire état + journal + .deployed_version"
+  ansible.builtin.slurp:
+    src: "/opt/grav-t20/{{ item }}"
+  register: _t20_s1
+  loop: [".deployed_state.yml", "deployed_versions.log", ".deployed_version"]
+
+- name: "T20 — état 1 : assertions sur les 5 champs + journal (1 ligne)"
+  vars:
+    _st: "{{ _t20_s1.results[0].content | b64decode | from_yaml }}"
+    _log: "{{ (_t20_s1.results[1].content | b64decode).splitlines() }}"
+    _eff: "{{ grav_l8_runtime_ref }}@{{ grav_l8_manifest_digest }}"
+  ansible.builtin.assert:
+    that:
+      - _st.image == grav_l8_runtime_ref
+      - _st.declared_version == "1.0.4"
+      - _st.digest == grav_l8_manifest_digest
+      - _st.effective_reference == _eff
+      - _st.deployed_at is match('^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$')
+      - _log | length == 1
+      - (_t20_s1.results[2].content | b64decode | trim) == _eff
+    fail_msg: "T20 état 1 : {{ _t20_s1.results[0].content | b64decode }}"
+    success_msg: "T20 état 1 OK — 5 champs cohérents, deployed_at ISO 8601, journal = 1 ligne."
+    quiet: true
+
+- name: "T20 — état 2 : second passage STRICTEMENT identique"  # noqa: role-name[path]
+  ansible.builtin.include_role:
+    name: "{{ grav_l8_role }}"
+  vars:
+    grav_manage_docker: false
+    grav_image: "{{ grav_l8_runtime_ref }}"
+    grav_version: "1.0.4"
+    grav_digest: "{{ grav_l8_manifest_digest }}"
+    grav_container_name: "grav-t20"
+    grav_base_directory: /opt/grav-t20
+    grav_bind_address: "127.0.0.1"
+    grav_http_port: 18191
+    grav_site_check_path: "/admin"
+
+- name: "T20 — état 2 : journal inchangé (append-only, aucune fausse entrée)"
+  ansible.builtin.slurp:
+    src: /opt/grav-t20/deployed_versions.log
+  register: _t20_s2
+
+- name: "T20 — état 2 : assertion"
+  ansible.builtin.assert:
+    that:
+      - (_t20_s2.content | b64decode).splitlines() | length == 1
+    success_msg: "T20 état 2 OK — passage identique, journal toujours à 1 ligne."
+    quiet: true
+
+- name: "T20 — état 3 : bump de grav_version (1.0.5), MÊME digest"  # noqa: role-name[path]
+  ansible.builtin.include_role:
+    name: "{{ grav_l8_role }}"
+  vars:
+    grav_manage_docker: false
+    grav_image: "{{ grav_l8_runtime_ref }}"
+    grav_version: "1.0.5"
+    grav_digest: "{{ grav_l8_manifest_digest }}"
+    grav_container_name: "grav-t20"
+    grav_base_directory: /opt/grav-t20
+    grav_bind_address: "127.0.0.1"
+    grav_http_port: 18191
+    grav_site_check_path: "/admin"
+
+- name: "T20 — état 3 : relire"
+  ansible.builtin.slurp:
+    src: "/opt/grav-t20/{{ item }}"
+  register: _t20_s3
+  loop: [".deployed_state.yml", "deployed_versions.log"]
+
+- name: "T20 — état 3 : declared_version MàJ, effective_reference INCHANGÉE, +1 ligne"
+  vars:
+    _st3: "{{ _t20_s3.results[0].content | b64decode | from_yaml }}"
+    _log3: "{{ (_t20_s3.results[1].content | b64decode).splitlines() }}"
+    _eff: "{{ grav_l8_runtime_ref }}@{{ grav_l8_manifest_digest }}"
+  ansible.builtin.assert:
+    that:
+      - _st3.declared_version == "1.0.5"
+      - _st3.digest == grav_l8_manifest_digest
+      - _st3.effective_reference == _eff
+      - _log3 | length == 2
+      - "' 1.0.5 ' in _log3[1]"
+      - _log3[0] | length > 0
+      - grav_l8_admin_password not in (_t20_s3.results[0].content | b64decode)
+      - grav_l8_admin_password not in (_t20_s3.results[1].content | b64decode)
+    success_msg: "T20 état 3 OK — declared_version 1.0.5, effective_reference inchangée, journal +1 ligne, aucun secret."
+    quiet: true
+  no_log: true
+
+- name: "T20 — état 4 : changement de digest (1.0.3)"  # noqa: role-name[path]
+  ansible.builtin.include_role:
+    name: "{{ grav_l8_role }}"
+  vars:
+    grav_manage_docker: false
+    grav_image: "{{ grav_l8_runtime_ref }}"
+    grav_version: "1.0.3"
+    grav_digest: "{{ _t20_d103.stdout | trim | regex_replace('^.*@', '') }}"
+    grav_container_name: "grav-t20"
+    grav_base_directory: /opt/grav-t20
+    grav_bind_address: "127.0.0.1"
+    grav_http_port: 18191
+    grav_site_check_path: "/admin"
+
+- name: "T20 — état 4 : relire"
+  ansible.builtin.slurp:
+    src: "/opt/grav-t20/{{ item }}"
+  register: _t20_s4
+  loop: [".deployed_state.yml", "deployed_versions.log"]
+
+- name: "T20 — état 4 : effective_reference CHANGÉE, +1 ligne, declared_version 1.0.3"
+  vars:
+    _st4: "{{ _t20_s4.results[0].content | b64decode | from_yaml }}"
+    _log4: "{{ (_t20_s4.results[1].content | b64decode).splitlines() }}"
+    _dig103: "{{ _t20_d103.stdout | trim | regex_replace('^.*@', '') }}"
+  ansible.builtin.assert:
+    that:
+      - _st4.declared_version == "1.0.3"
+      - _st4.digest == _dig103
+      - _st4.effective_reference == (grav_l8_runtime_ref ~ '@' ~ _dig103)
+      - _st4.effective_reference != (grav_l8_runtime_ref ~ '@' ~ grav_l8_manifest_digest)
+      - _log4 | length == 3
+    success_msg: "T20 état 4 OK — changement de digest : effective_reference change, journal +1 ligne."
+    quiet: true
+
+- name: "T20 — état 5 : rollback vers le digest de 1.0.4 (A→B→A)"  # noqa: role-name[path]
+  ansible.builtin.include_role:
+    name: "{{ grav_l8_role }}"
+  vars:
+    grav_manage_docker: false
+    grav_image: "{{ grav_l8_runtime_ref }}"
+    grav_version: "1.0.4"
+    grav_digest: "{{ grav_l8_manifest_digest }}"
+    grav_container_name: "grav-t20"
+    grav_base_directory: /opt/grav-t20
+    grav_bind_address: "127.0.0.1"
+    grav_http_port: 18191
+    grav_site_check_path: "/admin"
+
+- name: "T20 — état 5 : relire"
+  ansible.builtin.slurp:
+    src: "/opt/grav-t20/{{ item }}"
+  register: _t20_s5
+  loop: [".deployed_state.yml", "deployed_versions.log"]
+
+- name: "T20 — état 5 : effective_reference revenue, +1 ligne (journal = 4)"
+  vars:
+    _st5: "{{ _t20_s5.results[0].content | b64decode | from_yaml }}"
+    _log5: "{{ (_t20_s5.results[1].content | b64decode).splitlines() }}"
+    _eff: "{{ grav_l8_runtime_ref }}@{{ grav_l8_manifest_digest }}"
+  ansible.builtin.assert:
+    that:
+      - _st5.effective_reference == _eff
+      - _st5.declared_version == "1.0.4"
+      - _log5 | length == 4
+      # append-only : les 3 premières lignes sont strictement conservées
+      - _log5[0:3] == (_t20_s4.results[1].content | b64decode).splitlines()[0:3]
+    success_msg: "T20 état 5 OK — rollback A→B→A : effective_reference revenue, journal append-only à 4 lignes."
+    quiet: true
+
+- name: "T20 — teardown"
+  ansible.builtin.include_tasks: _teardown.yml
+  vars:
+    _td_dir: /opt/grav-t20
