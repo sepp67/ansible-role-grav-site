@@ -500,6 +500,8 @@ ansible-playbook -i inventory test_traceability.yml
 ansible-playbook -i inventory test_failure_log_lifecycle.yml
 ansible-playbook -i inventory test_admin_guard.yml
 ansible-playbook -i inventory test_persistence_untouched.yml
+ansible-playbook -i inventory test_consume_via_requirements.yml
+ansible-playbook -i inventory test_no_secret_leak.yml
 # fonctionnels (Docker requis)
 ansible-playbook -i inventory test.yml
 ansible-playbook -i inventory test_env_encoding.yml
@@ -536,15 +538,20 @@ l'en-tête de ce fichier. Conteneurs **privilégiés + systemd**, Docker-in-Dock
 
 | Scénario | Couvre | Plateformes |
 |---|---|---|
-| `molecule test -s install` | installation de `docker-ce` + plugin Compose (`tasks/docker.yml`) + **idempotence** | Debian 12, Ubuntu 22.04, Ubuntu 24.04 |
-| `molecule test -s deploy` | bootstrap admin réel, garde `admin_guard` avant mutation, `grav_bind_address` (127.0.0.1 / IPv4 LAN / 0.0.0.0), verdict `starting`→`healthy` / `unhealthy`, `.last_failure.log` (création + suppression) | Debian 12 |
-| `molecule test -s pull` | `pull: missing` sans consultation du registre, `grav_force_pull: true` → `pull: always` (tentative réelle) | Debian 12 |
-| `molecule test -s legacy` | rejoue `tests/test*.yml` en conteneur isolé (lent sur `vfs` — la CI utilise le job `test` sur Docker natif) | Debian 12 |
+| `molecule test -s install` | installation de `docker-ce` + plugin Compose (`tasks/docker.yml`) + **idempotence** (T02/T03) | Debian 12, Ubuntu 22.04, Ubuntu 24.04 |
+| `molecule test -s deploy` | bootstrap admin réel, garde `admin_guard` avant mutation, `grav_bind_address` (127.0.0.1 / IPv4 LAN / 0.0.0.0), verdict `starting`→`healthy` / `unhealthy`, `.last_failure.log` (T09–T16) | Debian 12 |
+| `molecule test -s digest` | déploiement par `grav_digest` (`image@sha256`), traçabilité structurée sur un déploiement réel, rôle joué `gather_facts: false` (T19/T20/T23) | Debian 12 |
+| `molecule test -s multi_instance` | deux invocations du rôle dans **un même playbook** ; isolation conteneurs / projets / ports / volumes / comptes / état / marqueurs (T21) | Debian 12 |
+| `molecule test -s pull` | `pull: missing` sans consultation du registre, `grav_force_pull: true` → `pull: always` (T17/T18) | Debian 12 |
+
+Résultats détaillés T01–T23 : [`docs/TEST-RESULTS.md`](docs/TEST-RESULTS.md).
+Images de plateforme épinglées par digest : [`molecule/README.md`](molecule/README.md).
 
 Vérifications statiques (CI, sans Docker) : `ansible-lint`, `--syntax-check` des
 playbooks, validité de l'inventaire d'exemple, `test_assertions.yml`,
 `test_traceability.yml`, `test_failure_log_lifecycle.yml`, `test_admin_guard.yml`,
-`test_persistence_untouched.yml`, garde-fous (`grav_version` jamais `latest`, aucun
+`test_persistence_untouched.yml`, `test_consume_via_requirements.yml` (T22),
+`test_no_secret_leak.yml`, garde-fous (`grav_version` jamais `latest`, aucun
 `vault.yml` réel commité, aucun lien symbolique hors dépôt, aucune adresse de VM
 privée, aucune référence au `control-repository` ni à un chemin local, renvois
 « voir README » valides).

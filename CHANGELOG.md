@@ -179,6 +179,9 @@ découpée en `Ajouté` / `Modifié` / `Déprécié` / `Supprimé` / `Corrigé` 
   `tests/test_consume_via_requirements.yml` (T22) dans `static-checks`.
 - **Ajouté** — images de plateforme Molecule **épinglées par digest d'index OCI**
   (`molecule/README.md` : digests complets, date, procédure de mise à jour).
+- **Ajouté** — `tests/test_no_secret_leak.yml` (audit statique : le mot de passe
+  n'apparaît que dans `grav.env`, jamais dans le compose / l'état structuré / le
+  journal / un fichier suivi par Git) ; `docs/TEST-RESULTS.md` (matrice T01–T23).
 - **Retiré** — scénario `molecule/legacy`. Justification : sur `vfs` (seul
   storage-driver viable en Docker imbriqué), le bootstrap Grav CLI est
   prohibitivement lent (> 4 min par compte), le rejeu des 4 phases de `test.yml`
