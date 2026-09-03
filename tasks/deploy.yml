@@ -21,7 +21,7 @@
     # always  : forcé explicitement par grav_force_pull (contrat v1.0.1 §5.6).
     pull: "{{ 'always' if grav_force_pull | bool else 'missing' }}"
     recreate: auto
-  register: grav_compose_result
+  register: _grav_compose_result
   when: grav_state != 'stopped'
 
 - name: "Arrêter le conteneur sans supprimer les données persistantes"

@@ -44,8 +44,8 @@
         url: "http://{{ _grav_site_check_host }}:{{ grav_http_port }}{{ grav_site_check_path }}"
         status_code: "{{ grav_site_check_status }}"
         timeout: "{{ grav_site_check_timeout }}"
-      register: grav_site_check
-      until: grav_site_check.status | default(0) == grav_site_check_status
+      register: _grav_site_check
+      until: _grav_site_check.status | default(0) == grav_site_check_status
       retries: "{{ grav_site_check_retries }}"
       delay: "{{ grav_site_check_delay }}"
 

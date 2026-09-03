@@ -7,13 +7,13 @@
 - name: "Vérifier que Docker Engine est installé et opérationnel"
   ansible.builtin.command:
     cmd: "docker version --format '{{ '{{' }}.Server.Version{{ '}}' }}'"
-  register: grav_docker_engine_check
+  register: _grav_docker_engine_check
   changed_when: false
-  failed_when: grav_docker_engine_check.rc != 0
+  failed_when: _grav_docker_engine_check.rc != 0
 
 - name: "Vérifier que le plugin Docker Compose v2 est installé et opérationnel"
   ansible.builtin.command:
     cmd: "docker compose version"
-  register: grav_docker_compose_check
+  register: _grav_docker_compose_check
   changed_when: false
-  failed_when: grav_docker_compose_check.rc != 0
+  failed_when: _grav_docker_compose_check.rc != 0
