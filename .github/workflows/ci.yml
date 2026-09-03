@@ -7,7 +7,7 @@ on:
 
 jobs:
   lint:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -29,7 +29,7 @@ jobs:
     # Vérifications statiques de la couche autonome (playbooks/,
     # inventories/) qui n'ont pas besoin de Docker — indépendantes du job
     # "test" ci-dessous.
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -122,7 +122,11 @@ jobs:
           exit $missing
 
   test:
-    runs-on: ubuntu-latest
+    # T04–T08 — déploiement / idempotence / mise à jour A→B / rollback B→A /
+    # persistance des 4 volumes, sur le Docker natif du runner GitHub Actions.
+    # La propriété démontrée est l'usage d'un storage driver OverlayFS
+    # performant (overlay2 ou overlayfs) — jamais vfs.
+    runs-on: ubuntu-24.04
     needs: lint
     steps:
       - uses: actions/checkout@v4
@@ -133,7 +137,23 @@ jobs:
         run: pip install "ansible-core>=2.17,<2.18"
       - name: Installer les dépendances du rôle
         run: ansible-galaxy collection install -r requirements.yml
-      - name: Test fonctionnel (Docker déjà présent sur le runner GitHub Actions)
+      - name: "Docker natif du runner — storage driver OverlayFS (pas de vfs)"
+        run: |
+          set -eu
+          docker version
+          docker compose version
+          docker info
+          driver="$(docker info --format '{{.Driver}}')"
+          echo "Storage driver observé : $driver"
+          case "$driver" in
+            overlay2|overlayfs)
+              echo "Driver accepté pour T04–T08." ;;
+            *)
+              echo "::error::Unsupported Docker storage driver for T04-T08: $driver"
+              exit 1
+              ;;
+          esac
+      - name: "T04–T08 — déploiement / idempotence / mise à jour / rollback / persistance des 4 volumes"
         run: |
           cd tests
           ansible-playbook -i inventory test.yml
@@ -150,7 +170,7 @@ jobs:
     # T02 / T03 — installation de Docker + idempotence sur les trois
     # plateformes supportées (conteneurs privilégiés + systemd, sans Docker
     # préinstallé). Le runner GitHub Actions autorise --privileged.
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: lint
     steps:
       - uses: actions/checkout@v4
@@ -167,7 +187,7 @@ jobs:
   molecule-deploy:
     # T09–T16 — déploiement fonctionnel réel (bootstrap admin, réseau,
     # verdict de santé, .last_failure.log) en Docker-in-Docker (Debian 12).
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: lint
     steps:
       - uses: actions/checkout@v4
@@ -185,7 +205,7 @@ jobs:
     # T17 / T18 — politique de pull missing / always : redémarrage sans
     # consultation du registre, grav_force_pull → tentative réelle de pull.
     # Docker-in-Docker (Debian 12).
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: lint
     steps:
       - uses: actions/checkout@v4
@@ -202,7 +222,7 @@ jobs:
   molecule-digest:
     # T19 / T20 / T23 — déploiement par digest, traçabilité structurée sur un
     # déploiement réel, rôle joué avec gather_facts: false. DinD (Debian 12).
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: lint
     steps:
       - uses: actions/checkout@v4
@@ -220,7 +240,7 @@ jobs:
     # T21 — deux invocations du rôle dans un même playbook sur le même hôte ;
     # isolation (conteneurs, projets Compose, ports, volumes, comptes, état).
     # DinD (Debian 12).
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: lint
     steps:
       - uses: actions/checkout@v4
