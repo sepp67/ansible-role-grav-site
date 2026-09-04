@@ -24,7 +24,7 @@ Actions (Lot 9) » en fin de document.
 | T01 | validation des variables avant mutation | `COMPLIANT` | EXÉCUTÉ LOCALEMENT — `ansible-playbook tests/test_assertions.yml` (46 scénarios, `changed=0`) |
 | T02 | installation de Docker (Debian/Ubuntu) | `COMPLIANT` | EXÉCUTÉ LOCALEMENT — `molecule test -s install` (Debian 12, Ubuntu 22.04, Ubuntu 24.04) |
 | T03 | idempotence de l'installation | `COMPLIANT` | EXÉCUTÉ LOCALEMENT — `molecule idempotence -s install`, `changed=0` sur les 3 plateformes |
-| T04 | premier déploiement : compte créé, 4 volumes initialisés | `COMPLIANT` | EXÉCUTÉ LOCALEMENT — Docker natif `overlayfs`, `ansible-playbook -i inventory test.yml`, `failed=0` (`ok=260`). COMMANDE ÉQUIVALENTE AU JOB CI `test` (`ubuntu-24.04`) — résultat consigné en fin de document après le run Lot 9 |
+| T04 | premier déploiement : compte créé, 4 volumes initialisés | `COMPLIANT` | JOB CI `test` sur `ubuntu-24.04` / Docker `overlay2` — run `105e085` (`ansible-playbook test.yml`, `failed=0`). Également EXÉCUTÉ LOCALEMENT sur `overlayfs` (`ok=260`). Voir « Exécution GitHub Actions (Lot 9) » |
 | T05 | second passage idempotent : aucun marqueur modifié, compte inchangé, journal stable | `COMPLIANT` | idem T04 — `deployed_versions.log` reste à 1 ligne |
 | T06 | mise à jour A→B (`1.0.3`→`1.0.4`) : conteneur sur B, 4 marqueurs + compte conservés | `COMPLIANT` | idem T04 — journal +1 ligne |
 | T07 | rollback B→A (`1.0.4`→`1.0.3`) : conteneur sur A, 4 marqueurs + compte conservés | `COMPLIANT` | idem T04 — journal +1 ligne |
@@ -46,9 +46,6 @@ Actions (Lot 9) » en fin de document.
 
 ## Limites de couverture résiduelles
 
-- **T04–T08 sur `overlay2`** : exécuté localement sur `overlayfs` (Docker natif,
-  `failed=0`) ; la confirmation sur `overlay2` vient du job CI `test`
-  (`ubuntu-24.04`), consignée ci-dessous après le run Lot 9.
 - **T13b « IPv4 LAN »** : testé sur l'IP du conteneur de bac à sable
   (`172.17.0.x`), pas sur une IPv4 de réseau physique.
 - **T15n** : verdict `unhealthy` provoqué avec `nginx:alpine` (image sans
@@ -68,9 +65,45 @@ Actions (Lot 9) » en fin de document.
 
 ## Exécution GitHub Actions (Lot 9)
 
-Branche `refonte/lot-9-release-preparation`. Détail (URL du run, SHA testé, statut
-de chaque job, version du runner, `docker info`, storage driver) renseigné après
-observation du run réel — voir `refonte-ansible-role-grav-site/19-lot-9-execution.md`
-pour le journal complet.
+Branche `refonte/lot-9-release-preparation`, événement `push`.
 
-_(À compléter : run initial + run final du HEAD définitif.)_
+### Run fonctionnel observé — SHA `105e085`
+
+- Run : <https://github.com/sepp67/ansible-role-grav-site/actions/runs/33789033957>
+  (`run_number` 13, `run_attempt` 1, `event: push`).
+- Runner : `ubuntu-24.04` (Ubuntu 24.04.4 LTS, noyau `6.17.0-1022-azure`).
+- Docker du runner : **Docker Engine 28.0.4**, **`Storage Driver: overlay2`**,
+  `Cgroup Driver: systemd` ; Docker Compose `v2.38.2`. Le job `test` a exécuté
+  `docker version` / `docker compose version` / `docker info`, extrait le driver
+  (`overlay2`), et l'a accepté avant de lancer T04–T08.
+
+| Job | Conclusion |
+|---|---|
+| `lint` | `success` |
+| `static-checks` | `success` |
+| `test` (T04–T08 + encodage + couche autonome) | `success` |
+| `molecule-install` (T02/T03, 3 plateformes) | `success` |
+| `molecule-deploy` (T09–T16) | `success` |
+| `molecule-pull` (T17/T18) | `success` |
+| `molecule-digest` (T19/T20/T23) | `success` |
+| `molecule-multi-instance` (T21) | `success` |
+
+Aucun job `skipped`, `cancelled` ou `continue-on-error`.
+
+Détail du job `test` (SHA `105e085`) :
+
+| Playbook | PLAY RECAP |
+|---|---|
+| `test.yml` (T04–T08) | `ok=258 changed=22 failed=0` — 4 phases, image en exécution vérifiée à chaque phase, **4 marqueurs de volume intacts** (initial / idempotent / A→B / B→A), nombre de fichiers de comptes et checksum de `testadmin.yaml` stables, journal `1 → 1 → 2 → 3` lignes |
+| `test_env_encoding.yml` | `ok=54 failed=0` |
+| `test_standalone.yml` | `ok=13 failed=0` |
+
+Les seuls `fatal:` du run sont des **cas négatifs attendus**, capturés par `rescue` :
+`molecule-deploy` T10 (la garde administrateur bloque un déploiement sans compte ni
+identifiants) et T15 (`nginx:alpine` sans `/healthcheck.sh` → échec `unhealthy`
+immédiat). Les PLAY RECAP de `converge` / `verify` de tous les scénarios Molecule
+affichent `failed=0` et la séquence se termine par `Pruning` (destroy inclus).
+
+### Run final du HEAD définitif
+
+_(à compléter — run sur le HEAD portant ce commit ; aucun commit après ce run.)_
