@@ -24,14 +24,16 @@ Le `control-repository` (Caddy, domaines, TLS) est **parallèle** à cette chaî
 publie sur Internet des instances déjà joignables sur le réseau local, sans dépendre
 de ce dépôt ni de `grav-sites-ops`.
 
-> **`v2.0.0` (en préparation)** — version majeure. La refonte selon le contrat
+> **`v2.0.0`** (2026-09-04) — version majeure. La refonte selon le contrat
 > architectural approuvé est terminée : `grav_bind_address` obligatoire (IPv4),
 > `grav_digest`, politique de pull `missing`, garde administrateur, traçabilité
 > structurée, couverture de tests complète. Les ruptures sont inventoriées dans
 > [`docs/MIGRATION.md`](docs/MIGRATION.md) ; la conformité exigence par exigence
 > dans [`docs/CONFORMITE-REQ.md`](docs/CONFORMITE-REQ.md) ; le détail dans
-> [`CHANGELOG.md`](CHANGELOG.md). Tant que le tag `v2.0.0` n'est pas publié,
-> épinglez `v1.0.1`. Ce README décrit le comportement de `2.0.0`.
+> [`CHANGELOG.md`](CHANGELOG.md). Épinglez `version: "v2.0.0"` dans votre
+> `requirements.yml` (voir « Utilisation comme rôle réutilisable » ci-dessous) ;
+> si vous migrez depuis `v1.0.1`, suivez `docs/MIGRATION.md`. Ce README décrit
+> le comportement de `2.0.0`.
 
 ---
 

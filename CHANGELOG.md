@@ -6,7 +6,7 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 Versionnement : [SemVer](https://semver.org/lang/fr/). Les versions correspondent aux
 tags Git du dépôt.
 
-## [2.0.0] — non publiée
+## [2.0.0] — 2026-09-04
 
 Version majeure : refonte du rôle selon le contrat architectural approuvé (v1.0.1),
 menée en dix lots (0 à 9). Toutes les ruptures sont inventoriées dans

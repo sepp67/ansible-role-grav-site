@@ -1,12 +1,12 @@
 # Guide de migration
 
-## `1.x` → `2.0.0` (en préparation)
+## `1.x` → `2.0.0`
 
-`2.0.0` sera une **version majeure** : elle introduit des changements d'interface
-incompatibles, tous annoncés ici. Aucune rupture n'est introduite silencieusement.
+`2.0.0` (2026-09-04) est une **version majeure** : elle introduit des changements
+d'interface incompatibles, tous annoncés ici. Aucune rupture n'est introduite
+silencieusement.
 
-Ce document est mis à jour au fil de la refonte. Tant que `2.0.0` n'est pas publiée,
-épinglez la version `1.0.1` :
+Pour rester temporairement sur la dernière version `1.x` (avant migration) :
 
 ```yaml
 # requirements.yml
@@ -15,6 +15,9 @@ roles:
     src: git+https://github.com/sepp67/ansible-role-grav-site.git
     version: "v1.0.1"
 ```
+
+Pour migrer vers `2.0.0`, remplacez `version:` par `"v2.0.0"` une fois les
+actions ci-dessous appliquées à votre profil.
 
 ### Résumé des ruptures d'interface `2.0.0`
 
@@ -417,7 +420,7 @@ Le rôle s'installe et s'appelle **par son nom** `sepp67.grav_site` (dérivé de
 `meta/main.yml` : `namespace: sepp67`, `role_name: grav_site`), sans dépendre de
 l'arborescence du dépôt d'origine ni d'aucun chemin absolu / lien symbolique.
 
-**Cible `2.0.0`** (une fois le tag publié) :
+**Cible `2.0.0`** :
 
 ```yaml
 # requirements.yml de votre dépôt d'orchestration
@@ -435,8 +438,10 @@ roles:
     - sepp67.grav_site
 ```
 
-**Différence avec le test T22** : `tests/test_consume_via_requirements.yml` utilise
-`src: git+file://<racine du dépôt>` et `version: <SHA de commit>` — le **tag
-`v2.0.0` n'existe pas encore** (les tags `v1.0.0` / `v1.0.1` existants sont
-antérieurs à la refonte et ne doivent pas être utilisés). Le tag `v2.0.0` sera créé
-au moment de la publication, **après** l'intégration de tous les lots.
+**Différence avec le test T22** : `tests/test_consume_via_requirements.yml`
+utilise `src: git+file://<racine du dépôt>` et `version: <SHA de commit>` — une
+référence dynamique pour tester la résolution par nom sans dépendre d'un tag
+précis. En production, épinglez toujours un tag réel (`v2.0.0`, ou le SHA exact
+d'un commit si une granularité plus fine est nécessaire) ; les tags `v1.0.0` /
+`v1.0.1` existants sont antérieurs à la refonte et ne doivent pas être utilisés
+pour une cible `2.0.0`.
