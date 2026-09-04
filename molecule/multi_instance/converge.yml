@@ -6,6 +6,21 @@
   vars:
     grav_l8_role: "{{ lookup('env', 'MOLECULE_PROJECT_DIRECTORY') }}"
     grav_l8_image: "ghcr.io/sepp67/grav-runtime"
+    # Fenêtre de HEALTHCHECK élargie, PROPRE À CE SCÉNARIO. Il enchaîne deux
+    # bootstraps administrateur complets (A puis B) puis un redéploiement de A
+    # dans un même play, sur un daemon Docker imbriqué en storage-driver vfs
+    # (chaque lecture/écriture de fichier est une copie intégrale). Sur un
+    # runner CI contraint, le démarrage à froid d'une instance a atteint ~72 s
+    # (run 33860181331), au-delà de la tolérance par défaut du HEALTHCHECK
+    # natif de l'image : start_period 10 s puis, la première sonde hors période
+    # de grâce comptant, verdict "unhealthy" à ~ start_period + interval ×
+    # (retries − 1) ≈ 10 + 30 × 2 ≈ 72 s (mesuré). Ces valeurs n'affectent QUE
+    # ce scénario Molecule — les défauts du rôle (defaults/main.yml) et le
+    # comportement de production sont inchangés. 120 s de grâce + 5 tentatives
+    # → verdict "unhealthy" au plus tôt à 120 + 30 × 4 ≈ 240 s, sous la fenêtre
+    # d'attente Ansible du rôle (grav_deploy_wait_retries 60 × delay 5 = 300 s).
+    grav_l8_hc_start_period: "120s"
+    grav_l8_hc_retries: 5
 
   tasks:
     - name: "Charger le digest résolu par prepare.yml"
@@ -41,6 +56,8 @@
         grav_admin_user: "mol-a"
         grav_admin_password: "{{ grav_l8_pw_a }}"
         grav_admin_email: "mol-a@molecule.test"
+        grav_healthcheck_start_period: "{{ grav_l8_hc_start_period }}"
+        grav_healthcheck_retries: "{{ grav_l8_hc_retries }}"
 
     # --- Instance B : déployée PAR TAG, port 18192, user mol-b ---
     - name: "T21 — déployer l'instance B (grav-b, par tag) dans le MÊME play"  # noqa: role-name[path]
@@ -58,6 +75,8 @@
         grav_admin_user: "mol-b"
         grav_admin_password: "{{ grav_l8_pw_b }}"
         grav_admin_email: "mol-b@molecule.test"
+        grav_healthcheck_start_period: "{{ grav_l8_hc_start_period }}"
+        grav_healthcheck_retries: "{{ grav_l8_hc_retries }}"
 
     - name: "T21 — déposer un marqueur de données PROPRE à chaque instance"
       ansible.builtin.command:
@@ -123,6 +142,8 @@
         grav_bind_address: "127.0.0.1"
         grav_http_port: 18191
         grav_site_check_path: "/admin"
+        grav_healthcheck_start_period: "{{ grav_l8_hc_start_period }}"
+        grav_healthcheck_retries: "{{ grav_l8_hc_retries }}"
 
     - name: "T21 — empreinte de B après redéploiement de A"
       ansible.builtin.find:
