@@ -40,24 +40,41 @@
       no_log: true
 
     # --- Instance A : déployée PAR DIGEST, port 18191, user mol-a ---
-    - name: "T21 — déployer l'instance A (grav-a, par digest)"  # noqa: role-name[path]
-      ansible.builtin.include_role:
-        name: "{{ grav_l8_role }}"
-      vars:
-        grav_manage_docker: false
-        grav_image: "{{ grav_l8_image }}"
-        grav_version: "1.0.4"
-        grav_digest: "{{ grav_l8_digest }}"
-        grav_container_name: "grav-a"
-        grav_base_directory: /opt/grav-a
-        grav_bind_address: "127.0.0.1"
-        grav_http_port: 18191
-        grav_site_check_path: "/admin"
-        grav_admin_user: "mol-a"
-        grav_admin_password: "{{ grav_l8_pw_a }}"
-        grav_admin_email: "mol-a@molecule.test"
-        grav_healthcheck_start_period: "{{ grav_l8_hc_start_period }}"
-        grav_healthcheck_retries: "{{ grav_l8_hc_retries }}"
+    # Encapsulée block/rescue POUR LE DIAGNOSTIC UNIQUEMENT : si grav-a n'atteint
+    # pas "healthy" (échec CI observé aux runs #14/#15), on collecte l'état réel
+    # du conteneur AVANT la destruction de l'environnement, puis on RÉÉMET
+    # l'échec. Aucune assertion retirée, aucun healthcheck neutralisé, aucun
+    # continue-on-error : un échec de A reste un échec du scénario.
+    - name: "T21 — instance A (grav-a, par digest) : déploiement + diagnostic sur échec"
+      block:
+        - name: "T21 — déployer l'instance A (grav-a, par digest)"  # noqa: role-name[path]
+          ansible.builtin.include_role:
+            name: "{{ grav_l8_role }}"
+          vars:
+            grav_manage_docker: false
+            grav_image: "{{ grav_l8_image }}"
+            grav_version: "1.0.4"
+            grav_digest: "{{ grav_l8_digest }}"
+            grav_container_name: "grav-a"
+            grav_base_directory: /opt/grav-a
+            grav_bind_address: "127.0.0.1"
+            grav_http_port: 18191
+            grav_site_check_path: "/admin"
+            grav_admin_user: "mol-a"
+            grav_admin_password: "{{ grav_l8_pw_a }}"
+            grav_admin_email: "mol-a@molecule.test"
+            grav_healthcheck_start_period: "{{ grav_l8_hc_start_period }}"
+            grav_healthcheck_retries: "{{ grav_l8_hc_retries }}"
+      rescue:
+        - name: "T21/DIAG — collecter l'état de grav-a en échec (censuré)"
+          ansible.builtin.include_tasks: tasks/_diag_instance_a.yml
+
+        - name: "T21 — réémettre l'échec de l'instance A (le diagnostic ne le masque pas)"
+          ansible.builtin.fail:
+            msg: >-
+              T21 : l'instance A (grav-a) n'a pas atteint « healthy ». Diagnostic
+              collecté ci-dessus (valeurs sensibles censurées). Échec conservé
+              volontairement — l'instrumentation n'est pas un correctif.
 
     # --- Instance B : déployée PAR TAG, port 18192, user mol-b ---
     - name: "T21 — déployer l'instance B (grav-b, par tag) dans le MÊME play"  # noqa: role-name[path]

@@ -1,0 +1,305 @@
+---
+# T21 / DIAGNOSTIC — exécuté UNIQUEMENT depuis le rescue de l'invocation qui
+# déploie l'instance A, quand grav-a n'a pas atteint "healthy" en CI.
+#
+# But : capturer, avant la destruction de l'environnement Molecule, l'état réel
+# du conteneur grav-a pour distinguer les hypothèses (bootstrap raté, politique
+# de mot de passe, compte absent, permissions, erreur PHP/Grav, volume,
+# /healthcheck.sh, processus web absent, digest, collision d'état).
+#
+# Toutes les collectes tolèrent l'absence du conteneur ou d'un fichier
+# (failed_when: false) — l'échec fonctionnel initial est réémis par le rescue
+# de converge.yml après cette collecte.
+#
+# Aucune valeur sensible ne doit apparaître : chaque sortie docker passe par
+# files/redact.sed (masque GRAV_ADMIN_*, *PASSWORD*/*SECRET*/*TOKEN*,
+# Authorization/Cookie, molpw-<a|b>-…). Le contenu du fichier de compte n'est
+# jamais lu. Un garde final refuse d'afficher si un secret a échappé au filtre.
+
+- name: "T21/DIAG — déployer le filtre de censure"
+  ansible.builtin.copy:
+    src: redact.sed
+    dest: /tmp/t21-redact.sed
+    mode: "0644"
+
+- name: "T21/DIAG — wrapper de censure /tmp/t21-redact"
+  ansible.builtin.copy:
+    dest: /tmp/t21-redact
+    mode: "0755"
+    content: |
+      #!/bin/sh
+      exec sed -E -f /tmp/t21-redact.sed
+
+# --- Collectes docker (sorties censurées à la source) --------------------------
+
+- name: "T21/DIAG — docker ps -a"
+  ansible.builtin.shell: |
+    set -o pipefail
+    docker ps -a 2>&1 | /tmp/t21-redact
+  args:
+    executable: /bin/bash
+  register: _d_ps
+  changed_when: false
+  failed_when: false
+
+- name: "T21/DIAG — docker inspect grav-a (complet, censuré)"
+  ansible.builtin.shell: |
+    set -o pipefail
+    docker inspect grav-a 2>&1 | /tmp/t21-redact
+  args:
+    executable: /bin/bash
+  register: _d_inspect
+  changed_when: false
+  failed_when: false
+
+- name: "T21/DIAG — historique des sondes Docker Healthcheck (grav-a)"
+  ansible.builtin.shell: |
+    set -o pipefail
+    docker inspect --format '{{ '{{' }}json .State.Health{{ '}}' }}' grav-a 2>&1 | /tmp/t21-redact
+  args:
+    executable: /bin/bash
+  register: _d_health
+  changed_when: false
+  failed_when: false
+
+- name: "T21/DIAG — champs d'état sûrs (grav-a)"
+  ansible.builtin.command:
+    argv:
+      - docker
+      - inspect
+      - --format
+      - >-
+        Status={{ '{{' }}.State.Status{{ '}}' }}
+        Running={{ '{{' }}.State.Running{{ '}}' }}
+        ExitCode={{ '{{' }}.State.ExitCode{{ '}}' }}
+        OOMKilled={{ '{{' }}.State.OOMKilled{{ '}}' }}
+        Error={{ '{{' }}.State.Error{{ '}}' }}
+        StartedAt={{ '{{' }}.State.StartedAt{{ '}}' }}
+        RestartCount={{ '{{' }}.RestartCount{{ '}}' }}
+        Health={{ '{{' }}.State.Health.Status{{ '}}' }}
+        FailingStreak={{ '{{' }}.State.Health.FailingStreak{{ '}}' }}
+        Image={{ '{{' }}.Config.Image{{ '}}' }}
+      - grav-a
+  register: _d_state
+  changed_when: false
+  failed_when: false
+
+- name: "T21/DIAG — montages du conteneur (grav-a)"
+  ansible.builtin.command:
+    argv:
+      - docker
+      - inspect
+      - --format
+      - "{{ '{{' }}json .Mounts{{ '}}' }}"
+      - grav-a
+  register: _d_mounts
+  changed_when: false
+  failed_when: false
+
+- name: "T21/DIAG — docker logs grav-a (censuré)"
+  ansible.builtin.shell: |
+    set -o pipefail
+    docker logs --tail 250 grav-a 2>&1 | /tmp/t21-redact
+  args:
+    executable: /bin/bash
+  register: _d_logs
+  changed_when: false
+  failed_when: false
+
+- name: "T21/DIAG — docker compose ps + config (censuré)"
+  ansible.builtin.shell: |
+    set -o pipefail
+    echo '=== compose ps ==='
+    docker compose --project-directory /opt/grav-a ps 2>&1 | /tmp/t21-redact
+    echo '=== compose config ==='
+    docker compose --project-directory /opt/grav-a config 2>&1 | /tmp/t21-redact
+  args:
+    executable: /bin/bash
+  register: _d_compose
+  changed_when: false
+  failed_when: false
+
+- name: "T21/DIAG — ports publiés + processus (grav-a)"
+  ansible.builtin.shell: |
+    set -o pipefail
+    echo '=== docker port ==='
+    docker port grav-a 2>&1
+    echo '=== docker top ==='
+    docker top grav-a 2>&1 | /tmp/t21-redact
+    echo '=== ps dans le conteneur ==='
+    docker exec grav-a ps -ef 2>&1 | /tmp/t21-redact || true
+    echo '=== écoute port 80 dans le conteneur ==='
+    docker exec grav-a sh -c 'netstat -tln 2>/dev/null || ss -tln 2>/dev/null' 2>&1 | grep -E ':80( |$)|:80\b' || echo 'port 80 NON en écoute'
+  args:
+    executable: /bin/bash
+  register: _d_proc
+  changed_when: false
+  failed_when: false
+
+- name: "T21/DIAG — /healthcheck.sh + /healthz depuis le conteneur (censuré)"
+  ansible.builtin.shell: |
+    set -o pipefail
+    echo '=== /healthcheck.sh ==='
+    docker exec grav-a /healthcheck.sh; echo "rc=$?"
+    echo '=== GET /healthz (dans le conteneur) ==='
+    docker exec grav-a sh -c 'curl -fsS -m 5 http://127.0.0.1/healthz || wget -qO- -T5 http://127.0.0.1/healthz || echo "healthz KO"' 2>&1 | /tmp/t21-redact
+  args:
+    executable: /bin/bash
+  register: _d_healthz
+  changed_when: false
+  failed_when: false
+
+- name: "T21/DIAG — GET applicatif depuis l'hôte Molecule (port publié)"
+  ansible.builtin.shell: |
+    set -o pipefail
+    for p in /admin /healthz /; do
+      code=$(curl -sS -m 8 -o /dev/null -w '%{http_code}' "http://127.0.0.1:18191$p" 2>/dev/null || echo 000)
+      echo "http://127.0.0.1:18191$p -> $code"
+    done
+  args:
+    executable: /bin/bash
+  register: _d_http_host
+  changed_when: false
+  failed_when: false
+
+- name: "T21/DIAG — logs Grav / PHP / nginx (censurés)"
+  ansible.builtin.shell: |
+    set -o pipefail
+    echo '=== user/logs ==='
+    docker exec grav-a sh -c 'ls -la /var/www/html/logs/ 2>/dev/null; \
+      tail -n 80 /var/www/html/logs/*.log 2>/dev/null' 2>&1 | /tmp/t21-redact || true
+    echo '=== /var/log (nginx, php-fpm) ==='
+    docker exec grav-a sh -c 'find /var/log -name "*.log" 2>/dev/null; \
+      tail -n 60 /var/log/nginx/*.log /var/log/php*.log 2>/dev/null' 2>&1 | /tmp/t21-redact || true
+  args:
+    executable: /bin/bash
+  register: _d_applogs
+  changed_when: false
+  failed_when: false
+
+- name: "T21/DIAG — noms de fichiers du volume accounts (PAS le contenu) + permissions"
+  ansible.builtin.shell: |
+    set -o pipefail
+    echo '=== ls -la user/accounts (dans le conteneur) ==='
+    docker exec grav-a ls -la /var/www/html/user/accounts/ 2>&1 || true
+    echo '=== ls -la data/accounts (hôte) ==='
+    ls -la /opt/grav-a/data/accounts/ 2>&1 || true
+  args:
+    executable: /bin/bash
+  register: _d_accounts
+  changed_when: false
+  failed_when: false
+
+# --- Collectes système (métadonnées seules, jamais de contenu) ----------------
+
+- name: "T21/DIAG — grav.env : présence / propriétaire / permissions (jamais le contenu)"
+  ansible.builtin.stat:
+    path: /opt/grav-a/grav.env
+  register: _s_env
+  failed_when: false
+
+- name: "T21/DIAG — .last_failure.log : présence / propriétaire / permissions"
+  ansible.builtin.stat:
+    path: /opt/grav-a/.last_failure.log
+  register: _s_lastfail
+  failed_when: false
+
+- name: "T21/DIAG — quatre volumes persistants : présence / permissions"
+  ansible.builtin.stat:
+    path: "/opt/grav-a/data/{{ item }}"
+  loop: [pages, accounts, data, images]
+  register: _s_vols
+  failed_when: false
+
+- name: "T21/DIAG — fichiers de comptes (noms + permissions, jamais le contenu)"
+  ansible.builtin.find:
+    paths: /opt/grav-a/data/accounts
+    file_type: file
+    hidden: true
+  register: _s_accounts
+  failed_when: false
+
+# --- Garde de non-divulgation : refuser d'afficher si un secret a échappé -------
+
+- name: "T21/DIAG — garde : aucun mot de passe fictif dans les sorties censurées"
+  vars:
+    _diag_blob: >-
+      {{ [_d_ps.stdout | default(''), _d_inspect.stdout | default(''),
+          _d_health.stdout | default(''), _d_logs.stdout | default(''),
+          _d_compose.stdout | default(''), _d_proc.stdout | default(''),
+          _d_healthz.stdout | default(''), _d_applogs.stdout | default(''),
+          _d_accounts.stdout | default(''), _d_http_host.stdout | default(''),
+          _d_mounts.stdout | default(''), _d_state.stdout | default('')]
+         | join('\n') }}
+  ansible.builtin.assert:
+    that:
+      - grav_l8_pw_a not in _diag_blob
+      - grav_l8_pw_b not in _diag_blob
+      - not (_diag_blob is regex('molpw-[ab]-[A-Za-z0-9]{6,}'))
+    fail_msg: >-
+      BLOCKED — DIAGNOSTIC DATA UNSAFE TO EXPOSE : une valeur sensible a échappé
+      au filtre de censure. Diagnostics NON affichés.
+    success_msg: "Filtre de censure vérifié — aucun mot de passe fictif dans les sorties."
+    quiet: true
+  no_log: true
+
+# --- Affichage (sorties déjà censurées) ---------------------------------------
+
+- name: "T21/DIAG — état et santé du conteneur"
+  ansible.builtin.debug:
+    msg: |
+      --- docker ps -a ---
+      {{ _d_ps.stdout | default('(indisponible)') }}
+      --- champs d'état grav-a ---
+      {{ _d_state.stdout | default('(conteneur absent)') }}
+      --- State.Health (historique des sondes) ---
+      {{ _d_health.stdout | default('(indisponible)') }}
+      --- docker inspect (complet, censuré) ---
+      {{ _d_inspect.stdout | default('(indisponible)') }}
+      --- Mounts ---
+      {{ _d_mounts.stdout | default('(indisponible)') }}
+
+- name: "T21/DIAG — logs conteneur + compose"
+  ansible.builtin.debug:
+    msg: |
+      --- docker logs grav-a (censuré) ---
+      {{ _d_logs.stdout | default('(indisponible)') }}
+      --- compose ps / config (censuré) ---
+      {{ _d_compose.stdout | default('(indisponible)') }}
+
+- name: "T21/DIAG — processus, ports, healthcheck, HTTP"
+  ansible.builtin.debug:
+    msg: |
+      --- processus / ports ---
+      {{ _d_proc.stdout | default('(indisponible)') }}
+      --- /healthcheck.sh + /healthz (conteneur) ---
+      {{ _d_healthz.stdout | default('(indisponible)') }}
+      --- GET depuis l'hôte Molecule (port 18191) ---
+      {{ _d_http_host.stdout | default('(indisponible)') }}
+
+- name: "T21/DIAG — logs applicatifs + volume accounts"
+  ansible.builtin.debug:
+    msg: |
+      --- logs Grav / PHP / nginx (censurés) ---
+      {{ _d_applogs.stdout | default('(indisponible)') }}
+      --- volume accounts (noms + permissions) ---
+      {{ _d_accounts.stdout | default('(indisponible)') }}
+
+- name: "T21/DIAG — métadonnées grav.env / .last_failure.log / volumes / comptes"
+  vars:
+    _acct_names: "{{ _s_accounts.files | default([]) | map(attribute='path') | map('basename') | list }}"
+  ansible.builtin.debug:
+    msg: |
+      grav.env            : exists={{ _s_env.stat.exists | default(false) }}
+                            owner={{ _s_env.stat.pw_name | default('?') }}:{{ _s_env.stat.gr_name | default('?') }}
+                            mode={{ _s_env.stat.mode | default('?') }}
+      .last_failure.log   : exists={{ _s_lastfail.stat.exists | default(false) }}
+                            owner={{ _s_lastfail.stat.pw_name | default('?') }}:{{ _s_lastfail.stat.gr_name | default('?') }}
+                            mode={{ _s_lastfail.stat.mode | default('?') }}
+      volumes persistants :
+      {% for r in _s_vols.results | default([]) %}
+        {{ r.item }}: exists={{ r.stat.exists | default(false) }} mode={{ r.stat.mode | default('?') }} owner={{ r.stat.pw_name | default('?') }}
+      {% endfor %}
+      fichiers de comptes : {{ _acct_names }}
+      permissions comptes : {{ _s_accounts.files | default([]) | map(attribute='mode') | list }}
+      mol-a.yaml présent  : {{ ('mol-a.yaml' in _acct_names) or ('mol-a.yml' in _acct_names) }}
