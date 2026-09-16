@@ -1,0 +1,38 @@
+---
+# Contrat du rôle depuis sa toute première version (README.md "Prérequis") :
+# le play appelant DOIT fournir become: true. Ce rôle n'escalade jamais ses
+# propres privilèges — c'est la responsabilité du play appelant, pas de ce
+# rôle (audit privilèges 2026-09 : décision confirmée, pas de become:true
+# dispersé tâche par tâche).
+#
+# Avant cette garde, une invocation sans become échouait profondément dans
+# tasks/docker.yml, directories.yml ou secrets.yml, avec des erreurs OS
+# brutes ("Permission denied", "Operation not permitted") ne pointant vers
+# aucune cause. Cette tâche transforme cet échec en message actionnable, AVANT
+# l'installation Docker, la création de grav_base_directory, la création ou
+# le chown des secrets, et la génération des fichiers privilégiés
+# (grav.env, .last_failure.log).
+#
+# `id -u` plutôt que le fact ansible_user_uid : ce fact est optionnel et
+# peut être absent en gather_facts:false — id -u ne dépend d'aucun fact,
+# ne modifie rien (changed_when: false) et ne journalise aucune donnée
+# sensible.
+- name: "Vérifier l'identité effective sur la cible (aucune modification)"
+  ansible.builtin.command:
+    cmd: id -u
+  register: _grav_effective_uid
+  changed_when: false
+
+- name: "Exiger un utilisateur effectif root (become: true côté appelant)"
+  ansible.builtin.assert:
+    that:
+      - _grav_effective_uid.stdout | trim == '0'
+    fail_msg: >-
+      Ce rôle nécessite un utilisateur effectif root sur la cible (uid 0) —
+      voir README.md "Prérequis". Utilisateur effectif détecté :
+      uid {{ _grav_effective_uid.stdout | trim }}. Le play qui invoque ce
+      rôle doit définir `become: true` (le rôle n'escalade jamais ses
+      propres privilèges : installation Docker, création de
+      grav_base_directory, dépôt et chown des secrets, et génération des
+      fichiers privilégiés du conteneur en dépendent tous).
+    quiet: true
