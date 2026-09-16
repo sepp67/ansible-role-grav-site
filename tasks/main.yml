@@ -2,6 +2,9 @@
 - name: "Valider les variables du rôle"
   ansible.builtin.import_tasks: assert.yml
 
+- name: "Vérifier le contrat de privilèges (become: true requis — audit 2026-09)"
+  ansible.builtin.import_tasks: privilege_guard.yml
+
 - name: "Garde administrateur avant toute mutation (contrat v1.0.1 §9.3.1)"
   ansible.builtin.import_tasks: admin_guard.yml
 
