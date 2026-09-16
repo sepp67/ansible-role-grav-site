@@ -89,7 +89,16 @@ Docker Compose vous-même. Le reste du rôle est indépendant de l'OS.
 ## Prérequis
 
 - Ansible-core `>= 2.17, < 2.18` (borne alignée sur `community.docker` 5.x), exécuté
-  avec les privilèges root (`become: true`).
+  avec les privilèges root (`become: true`) — **vérifié dès le début de l'exécution**
+  par `tasks/privilege_guard.yml` (`id -u`, compatible `gather_facts: false`) : sans
+  `become: true` côté appelant, le rôle échoue immédiatement avec un message
+  actionnable plutôt qu'une erreur OS brute plus loin (`Permission denied` à la
+  création de `grav_base_directory`, `Operation not permitted` au dépôt des
+  secrets…). Le rôle n'escalade jamais ses propres privilèges : c'est la
+  responsabilité du play appelant.
+- Le compte utilisé pour se connecter à la cible n'a besoin d'aucune appartenance de
+  groupe particulière (notamment **pas** le groupe `docker`) : `sudo`/`become`
+  suffit pour Docker comme pour le reste.
 - La collection `community.docker` (`>=5.0.0,<6.0.0`) :
 
   ```bash
@@ -466,7 +475,7 @@ vérifie, sans rien modifier :
 | Fichier Vault présent | `test -f <VAULT>` |
 
 Aucune de ces vérifications ne duplique ce que le rôle valide déjà à l'exécution
-(`tasks/assert.yml`, `tasks/verify_docker.yml`).
+(`tasks/assert.yml`, `tasks/verify_docker.yml`, `tasks/privilege_guard.yml`).
 
 ## Makefile
 
@@ -483,15 +492,24 @@ make vault-edit VAULT=inventories/mon-site/group_vars/grav_servers/vault.yml
 ## Structure des dossiers déployés sur l'hôte
 
 ```text
-{{ grav_base_directory }}/
-├── docker-compose.yml       # généré, générique — ne pas éditer à la main
-├── grav.env                 # généré, mode 0600
-├── secrets/                 # fichiers secrets, montés en lecture seule
-├── data/{pages,accounts,data,images}/   # bind mounts persistants
-├── .deployed_state.yml      # état structuré : image / declared_version / digest / effective_reference / deployed_at
-├── .deployed_version        # une ligne : la référence effective actuellement déployée
-└── deployed_versions.log    # append-only : "<horodatage> <declared_version> <référence effective>", une ligne par changement d'état contractuel
+{{ grav_base_directory }}/                 # root:root 0755
+├── docker-compose.yml       # généré, générique — ne pas éditer à la main — root:root 0644
+├── grav.env                 # généré — root:root 0600
+├── secrets/                 # fichiers secrets — root:{{ grav_container_gid }} 0750
+│   └── <name>                #   chaque fichier — root:{{ grav_container_gid }} 0640
+├── data/{pages,accounts,data,images}/   # bind mounts persistants — repris en www-data
+│                                          #   (uid/gid 82) par grav-runtime au 1er démarrage ;
+│                                          #   jamais de mode/owner imposé par le rôle ensuite
+│                                          #   (aucun chown récursif ni destructif)
+├── .deployed_state.yml      # état structuré : image / declared_version / digest / effective_reference / deployed_at — 0644, propriétaire = utilisateur Ansible effectif
+├── .deployed_version        # une ligne : la référence effective actuellement déployée — 0644, idem
+├── deployed_versions.log    # append-only : "<horodatage> <declared_version> <référence effective>", une ligne par changement d'état contractuel — 0644, idem
+└── .last_failure.log        # diagnostic d'échec (rescue du healthcheck uniquement) — root:root 0600
 ```
+
+Voir "Prérequis" ci-dessus : `root:root`/`owner: root` ci-dessus suppose `become: true`
+côté appelant, vérifié explicitement par `tasks/privilege_guard.yml` avant toute
+tâche qui en dépend.
 
 ## Tests
 
@@ -506,7 +524,9 @@ ansible-playbook -i inventory test_admin_guard.yml
 ansible-playbook -i inventory test_persistence_untouched.yml
 ansible-playbook -i inventory test_consume_via_requirements.yml
 ansible-playbook -i inventory test_no_secret_leak.yml
-# fonctionnels (Docker requis)
+ansible-playbook -i inventory test_privilege_guard.yml
+# fonctionnels (Docker requis, ET désormais sudo/become non interactif — voir
+# tasks/privilege_guard.yml)
 ansible-playbook -i inventory test.yml
 ansible-playbook -i inventory test_env_encoding.yml
 ansible-playbook -i inventory test_standalone.yml
@@ -533,7 +553,13 @@ ansible-playbook -i inventory test_standalone.yml
 - `tests/test_env_encoding.yml` : un mot de passe admin contenant `$ # " ' \` et des
   espaces ressort **strictement identique** dans le conteneur (comparaison masquée).
 - `tests/test_standalone.yml` : exécute réellement les playbooks de `playbooks/` en
-  sous-processus, depuis un inventaire de test localhost.
+  sous-processus, depuis un inventaire de test localhost. Nécessite désormais un
+  `become` fonctionnel (`sudo` non interactif) sur la machine de test — voir
+  `tasks/privilege_guard.yml`.
+- `tests/test_privilege_guard.yml` : rejoue **uniquement**
+  `tasks/privilege_guard.yml` (aucun Docker) sans `become` et vérifie que le rôle
+  échoue immédiatement avec le message actionnable attendu, sans jamais atteindre
+  Docker/`directories.yml`/`secrets.yml`.
 
 `grav_manage_docker: false` dans les trois — l'installation de Docker est validée
 par Molecule (ci-dessous).
@@ -546,6 +572,7 @@ l'en-tête de ce fichier. Conteneurs **privilégiés + systemd**, Docker-in-Dock
 | Scénario | Couvre | Plateformes |
 |---|---|---|
 | `molecule test -s install` | installation de `docker-ce` + plugin Compose (`tasks/docker.yml`) + **idempotence** (T02/T03) | Debian 12, Ubuntu 22.04, Ubuntu 24.04 |
+| `molecule test -s install_gather_facts_false` | `gather_facts: false` + `grav_manage_docker: true` (T24) : faits absents, collecte ciblée par `tasks/docker.yml`, aucune erreur Jinja brute, installation réussie | Debian 12 |
 | `molecule test -s deploy` | bootstrap admin réel, garde `admin_guard` avant mutation, `grav_bind_address` (127.0.0.1 / IPv4 LAN / 0.0.0.0), verdict `starting`→`healthy` / `unhealthy`, `.last_failure.log` (T09–T16) | Debian 12 |
 | `molecule test -s digest` | déploiement par `grav_digest` (`image@sha256`), traçabilité structurée sur un déploiement réel, rôle joué `gather_facts: false` (T19/T20/T23) | Debian 12 |
 | `molecule test -s multi_instance` | deux invocations du rôle dans **un même playbook** ; isolation conteneurs / projets / ports / volumes / comptes / état / marqueurs (T21) | Debian 12 |
@@ -559,7 +586,7 @@ Vérifications statiques (CI, sans Docker) : `ansible-lint`, `--syntax-check` de
 playbooks, validité de l'inventaire d'exemple, `test_assertions.yml`,
 `test_traceability.yml`, `test_failure_log_lifecycle.yml`, `test_admin_guard.yml`,
 `test_persistence_untouched.yml`, `test_consume_via_requirements.yml` (T22),
-`test_no_secret_leak.yml`, garde-fous (`grav_version` jamais `latest`, aucun
+`test_no_secret_leak.yml`, `test_privilege_guard.yml`, garde-fous (`grav_version` jamais `latest`, aucun
 `vault.yml` réel commité, aucun lien symbolique hors dépôt, aucune adresse de VM
 privée, aucune référence au `control-repository` ni à un chemin local, renvois
 « voir README » valides).
