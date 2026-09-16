@@ -1,0 +1,61 @@
+---
+# Converge — gather_facts:false + grav_manage_docker:true (T24). Le
+# conteneur molecule tourne en root (pas de become nécessaire ici,
+# tasks/privilege_guard.yml passe donc silencieusement) : seule la
+# collecte de faits est sous test.
+
+- name: "Converge — installation de Docker sous gather_facts: false (T24)"
+  hosts: all
+  gather_facts: false
+
+  tasks:
+    - name: "Prérequis T24 — aucun fait n'est encore connu au début du converge"
+      ansible.builtin.assert:
+        that:
+          - ansible_facts['os_family'] is not defined
+        fail_msg: >-
+          Des facts sont déjà présents avant même d'exécuter le rôle : ce
+          scénario ne prouverait plus rien (doit partir de
+          gather_facts: false strict).
+        quiet: true
+      tags: [molecule-idempotence-notest]
+
+    - name: "Constater l'état initial : Docker Engine absent"
+      ansible.builtin.command: "docker version"
+      register: _grav_pre_docker
+      changed_when: false
+      failed_when: false
+      tags: [molecule-idempotence-notest]
+
+    - name: "Prérequis T24 — le système de départ n'a pas Docker (contrainte 1)"
+      ansible.builtin.assert:
+        that:
+          - _grav_pre_docker.rc != 0
+        fail_msg: >-
+          Docker Engine est déjà présent sur ce conteneur : T24 doit partir
+          d'un environnement où Docker n'est pas installé.
+        quiet: true
+      tags: [molecule-idempotence-notest]
+
+    # Rôle résolu par chemin absolu (molecule expose MOLECULE_PROJECT_DIRECTORY),
+    # comme les playbooks/ du dépôt — voir README.md "Résolution du rôle".
+    - name: "Installer Docker Engine + le plugin Compose SANS gather_facts (tasks/docker.yml)"  # noqa: role-name[path]
+      ansible.builtin.include_role:
+        name: "{{ lookup('env', 'MOLECULE_PROJECT_DIRECTORY') }}"
+        tasks_from: docker
+
+    - name: "T24 — le rôle a bien collecté os_family/architecture lui-même"
+      ansible.builtin.assert:
+        that:
+          - ansible_facts['os_family'] is defined
+          - ansible_facts['os_family'] == 'Debian'
+          - ansible_facts['architecture'] is defined
+        fail_msg: >-
+          tasks/docker.yml n'a pas collecté les faits attendus malgré
+          gather_facts: false — la collecte ciblée (contrat v2.0.1) a
+          échoué ou n'a pas eu lieu.
+        success_msg: >-
+          T24 OK — tasks/docker.yml a collecté os_family/architecture lui-même
+          (gather_subset ciblé) malgré gather_facts: false côté appelant,
+          sans erreur Jinja brute sur une variable indéfinie.
+        quiet: true

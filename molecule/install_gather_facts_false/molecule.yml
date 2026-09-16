@@ -1,0 +1,52 @@
+---
+# Scénario molecule "install_gather_facts_false" — T24 (contrat v2.0.1,
+# audit privilèges 2026-09).
+#
+# Reproduit la combinaison qui a fait échouer le premier déploiement réel
+# (grav-platform-docs) : le play appelant tourne en `gather_facts: false`
+# ET `grav_manage_docker: true` (la valeur par défaut du rôle). Avant
+# v2.0.1, `tasks/docker.yml` dépendait silencieusement de
+# `ansible_facts['os_family']`/`architecture`/`distribution` sans jamais
+# les collecter — cette combinaison échouait sur une variable indéfinie.
+# Depuis v2.0.1, `tasks/docker.yml` gathère ces faits lui-même (ciblé,
+# conditionnel) — ce scénario le prouve sur un conteneur privilégié réel.
+#
+# Une seule plateforme (Debian 12) : ce scénario ne teste PAS le support
+# multi-distribution (déjà couvert par `molecule/install`), seulement le
+# comportement gather_facts:false — inutile de le dupliquer sur les 3
+# plateformes.
+
+role_name_check: 1
+
+driver:
+  name: docker
+
+platforms:
+  - name: grav-l7-install-nofacts-debian12
+    image: geerlingguy/docker-debian12-ansible@sha256:a906d69671f93666731d196add52a2447966303d8bc398da8fd01bdb543909dc
+    command: /usr/lib/systemd/systemd
+    privileged: true
+    cgroupns_mode: host
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+    tmpfs:
+      - /run
+      - /run/lock
+    pre_build_image: true
+
+provisioner:
+  name: ansible
+
+dependency:
+  name: galaxy
+  enabled: false
+
+scenario:
+  name: install_gather_facts_false
+  test_sequence:
+    - destroy
+    - create
+    - converge
+    - idempotence
+    - verify
+    - destroy
