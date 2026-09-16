@@ -10,10 +10,19 @@
 # ensuite : le rôle n'a pas à connaître ni reproduire la logique du runtime,
 # seulement fournir des répertoires existants au premier déploiement.
 
+# owner/group root explicites (contrat v2.0.1, audit privilèges 2026-09) :
+# valable quel que soit l'emplacement choisi pour grav_base_directory, pas
+# seulement sous /opt. tasks/privilege_guard.yml (importé avant cette
+# tâche dans tasks/main.yml) garantit déjà un utilisateur effectif root —
+# root:root est donc systématiquement atteignable, y compris pour un
+# grav_base_directory personnalisé (ex. /tmp en test) : aucune variable de
+# propriétaire séparée n'est nécessaire.
 - name: "Créer la racine de l'instance"
   ansible.builtin.file:
     path: "{{ grav_base_directory }}"
     state: directory
+    owner: root
+    group: root
     mode: "0755"
 
 - name: "Créer les répertoires persistants (pages, accounts, data, images)"  # noqa: risky-file-permissions

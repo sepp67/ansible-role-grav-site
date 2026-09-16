@@ -3,12 +3,16 @@
   ansible.builtin.template:
     src: docker-compose.yml.j2
     dest: "{{ grav_base_directory }}/docker-compose.yml"
+    owner: root
+    group: root
     mode: "0644"
 
 - name: "Déployer le fichier grav.env (variables d'environnement du conteneur)"
   ansible.builtin.template:
     src: grav.env.j2
     dest: "{{ grav_base_directory }}/grav.env"
+    owner: root
+    group: root
     mode: "0600"
   no_log: true
 
