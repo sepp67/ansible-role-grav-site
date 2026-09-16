@@ -16,13 +16,14 @@
 # CE N'EST PAS un déploiement de production (grav_manage_docker=false,
 # aucun hôte distant, aucune donnée réelle).
 #
-# `-e ansible_become=false` désactive le become des playbooks pour ce seul
-# test (l'utilisateur exécutant les tests n'a pas nécessairement de sudo
-# sans mot de passe) : grav_manage_docker=false évite toute tâche
-# nécessitant réellement root (apt, systemd) et /tmp est inscriptible par
-# l'utilisateur courant, donc rien ne dépend réellement de become ici.
-# Un déploiement réel sur un hôte distant garde become: true — ceci ne
-# modifie que l'exécution de CE test, pas les playbooks eux-mêmes.
+# become: true requis depuis tasks/privilege_guard.yml (contrat v2.0.1,
+# audit privilèges 2026-09) : grav_base_directory et grav.env ont
+# désormais un propriétaire root explicite, même sous /tmp. L'ancienne
+# option `-e ansible_become=false` (qui reposait sur le fait qu'aucune
+# tâche de CE test n'imposait alors de propriétaire) a été retirée — elle
+# masquerait précisément la régression que ce test doit prévenir. La
+# machine qui exécute ce test doit désormais disposer d'un sudo non
+# interactif (comme le runner CI) — voir README.md "Prérequis".
 #
 # Usage (depuis la racine du dépôt) :
 #   cd tests && ansible-playbook -i inventory test_standalone.yml
@@ -44,7 +45,6 @@
     # ne devient jamais healthy. "not-a-real-secret" garde la valeur
     # transparente pour l'audit de non-fuite.
     grav_standalone_extra_args: >-
-      -e ansible_become=false
       -e grav_manage_docker=false
       -e grav_image={{ grav_standalone_image }}
       -e grav_version={{ grav_standalone_version }}
