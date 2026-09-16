@@ -12,12 +12,16 @@
 # "Résolution du rôle") ; `# noqa: role-name[path]` plus bas est un choix
 # délibéré, pas un oubli.
 #
+# become: true requis depuis tasks/privilege_guard.yml (contrat v2.0.1) :
+# grav.env a désormais un propriétaire root explicite — voir tests/test.yml.
+#
 # Usage (depuis la racine du dépôt) :
 #   cd tests && ansible-playbook -i inventory test_env_encoding.yml
 
 - name: "Test de l'encodage des caractères spéciaux dans grav.env"
   hosts: localhost
   connection: local
+  become: true
 
   vars:
     grav_manage_docker: false

@@ -1,0 +1,53 @@
+---
+# Prouve que tasks/privilege_guard.yml échoue de façon CONTRÔLÉE et LISIBLE
+# quand le play appelant n'a pas de become fonctionnel — AVANT toute tâche
+# privilégiée (Docker, création de grav_base_directory, secrets, fichiers
+# privilégiés). Aucun Docker, aucune mutation, aucune VM.
+#
+# Tourne délibérément SANS become : c'est le scénario qu'il doit prouver
+# (l'utilisateur exécutant les tests n'a pas nécessairement de sudo sans
+# mot de passe — voir tests/test_standalone.yml pour le même principe).
+#
+# Usage (depuis la racine du dépôt) :
+#   cd tests && ansible-playbook -i inventory test_privilege_guard.yml
+
+- name: "Garde de privilèges — échec contrôlé et lisible sans become"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  become: false
+
+  tasks:
+    - name: "Rejouer tasks/privilege_guard.yml sans become (doit échouer)"
+      block:
+        - name: "Rejouer tasks/privilege_guard.yml (par chemin, aucun become)"  # noqa: role-name[path]
+          ansible.builtin.include_role:
+            name: "{{ playbook_dir }}/.."
+            tasks_from: privilege_guard
+
+        - name: "Échec du test : la garde aurait dû échouer sans become"
+          ansible.builtin.fail:
+            msg: >-
+              tasks/privilege_guard.yml n'a PAS échoué sans become : la garde
+              ne protège plus les tâches privilégiées suivantes (Docker,
+              grav_base_directory, secrets, fichiers privilégiés).
+
+      rescue:
+        - name: "Vérifier que l'échec porte le message actionnable attendu"
+          ansible.builtin.assert:
+            that:
+              - ansible_failed_result is defined
+              - "'become: true' in (ansible_failed_result.msg | default(''))"
+              - "'uid 0' in (ansible_failed_result.msg | default(''))"
+            fail_msg: >-
+              La garde a bien échoué (attendu sans become), mais le message
+              n'est pas le message actionnable attendu — message obtenu :
+              « {{ ansible_failed_result.msg | default('(absent)') }} ».
+            quiet: true
+
+        - name: "Bilan"
+          ansible.builtin.debug:
+            msg: >-
+              test_privilege_guard OK — tasks/privilege_guard.yml échoue sans
+              become, avant toute tâche privilégiée, avec un message
+              actionnable pointant vers le prérequis README ("Prérequis").

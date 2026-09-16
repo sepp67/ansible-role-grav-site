@@ -32,10 +32,17 @@
 # ("{{ playbook_dir }}/.."), jamais par son nom : la résolution ne dépend
 # donc jamais du nom du dossier sous lequel ce dépôt a été cloné (vérifié
 # empiriquement — voir README.md "Résolution du rôle").
+#
+# become: true requis depuis tasks/privilege_guard.yml (contrat v2.0.1,
+# audit privilèges 2026-09) : grav_base_directory et grav.env ont
+# désormais un propriétaire root explicite. La machine qui exécute ce
+# test doit disposer d'un sudo non interactif (comme le runner CI) —
+# voir README.md "Prérequis".
 
 - name: "Test fonctionnel du rôle grav-site : redéploiement / mise à jour / rollback"
   hosts: localhost
   connection: local
+  become: true
 
   vars:
     grav_manage_docker: false
