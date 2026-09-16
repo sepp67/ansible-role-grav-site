@@ -8,6 +8,7 @@ supporté).
 | Scénario | Tests (§17 du contrat) |
 |---|---|
 | `install` | T02, T03 — installation de Docker + idempotence, 3 plateformes |
+| `install_gather_facts_false` | T24 — installation de Docker sous `gather_facts: false` (contrat v2.0.1) : `tasks/docker.yml` collecte lui-même les faits qui lui manquent |
 | `deploy` | T09–T16 — bootstrap admin, `admin_guard`, `grav_bind_address`, verdict de santé, `.last_failure.log` |
 | `digest` | T19, T20, T23 — déploiement par digest, traçabilité structurée en Docker réel, `gather_facts: false` |
 | `multi_instance` | T21 — deux invocations du rôle dans **un même playbook**, isolation vérifiée |
@@ -15,6 +16,7 @@ supporté).
 
 ```bash
 molecule test -s install
+molecule test -s install_gather_facts_false
 molecule test -s deploy
 molecule test -s digest
 molecule test -s multi_instance

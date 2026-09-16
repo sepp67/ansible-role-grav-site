@@ -74,6 +74,10 @@ jobs:
         run: |
           cd tests
           ansible-playbook -i inventory test_no_secret_leak.yml
+      - name: "Garde de privilèges — échec contrôlé sans become (aucun Docker)"
+        run: |
+          cd tests
+          ansible-playbook -i inventory test_privilege_guard.yml
       - name: "grav_version de l'exemple jamais 'latest'"
         run: |
           ! grep -E '^\s*grav_version:\s*"?latest"?\s*$' \
@@ -183,6 +187,25 @@ jobs:
           ansible-galaxy collection install 'community.docker:>=3.10.2' 'ansible.posix:>=1.4.0'
       - name: "molecule test -s install (Debian 12, Ubuntu 22.04, Ubuntu 24.04)"
         run: molecule test -s install
+
+  molecule-install-gather-facts-false:
+    # T24 (contrat v2.0.1, audit privilèges 2026-09) — reproduit la
+    # combinaison ayant fait échouer le premier déploiement réel
+    # (grav-platform-docs) : gather_facts: false + grav_manage_docker: true.
+    # Prouve que tasks/docker.yml collecte désormais ses propres faits.
+    runs-on: ubuntu-24.04
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: "Installer Molecule + le driver Docker (requirements-test.txt)"
+        run: |
+          pip install -r requirements-test.txt
+          ansible-galaxy collection install 'community.docker:>=3.10.2' 'ansible.posix:>=1.4.0'
+      - name: "molecule test -s install_gather_facts_false (Debian 12)"
+        run: molecule test -s install_gather_facts_false
 
   molecule-deploy:
     # T09–T16 — déploiement fonctionnel réel (bootstrap admin, réseau,

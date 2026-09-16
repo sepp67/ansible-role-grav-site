@@ -1,0 +1,49 @@
+---
+- name: "Verify — Docker Engine et Compose v2 opérationnels (T24)"
+  hosts: all
+  gather_facts: false
+
+  tasks:
+    - name: "Version du serveur Docker"
+      ansible.builtin.command: "docker version --format '{{ '{{' }}.Server.Version{{ '}}' }}'"
+      register: _grav_docker_server
+      changed_when: false
+
+    - name: "Version du plugin Compose v2"
+      ansible.builtin.command: "docker compose version --short"
+      register: _grav_compose_ver
+      changed_when: false
+
+    - name: "État du service systemd docker"  # noqa: command-instead-of-module
+      ansible.builtin.command: "systemctl is-active docker"
+      register: _grav_docker_active
+      changed_when: false
+
+    - name: "Service docker activé au démarrage"  # noqa: command-instead-of-module
+      ansible.builtin.command: "systemctl is-enabled docker"
+      register: _grav_docker_enabled
+      changed_when: false
+
+    - name: "Dépôt APT officiel Docker déclaré"
+      ansible.builtin.command: "grep -R download.docker.com /etc/apt/sources.list.d/"
+      register: _grav_docker_repo
+      changed_when: false
+
+    - name: "Assertions T24 — Docker installé, opérationnel, persistant (gather_facts: false)"
+      ansible.builtin.assert:
+        that:
+          - _grav_docker_server.stdout is match('^[0-9]+\\.[0-9]+')
+          - _grav_compose_ver.stdout is match('^v?[0-9]+\\.[0-9]+')
+          - _grav_docker_active.stdout == 'active'
+          - _grav_docker_enabled.stdout == 'enabled'
+          - "'download.docker.com' in _grav_docker_repo.stdout"
+        success_msg: >-
+          Docker Engine {{ _grav_docker_server.stdout }} + Compose
+          {{ _grav_compose_ver.stdout }} installés depuis le dépôt officiel,
+          service actif et activé.
+        quiet: true
+
+    - name: "Contrôle croisé : le chemin grav_manage_docker: false accepte cet état (verify_docker.yml)"  # noqa: role-name[path]
+      ansible.builtin.include_role:
+        name: "{{ lookup('env', 'MOLECULE_PROJECT_DIRECTORY') }}"
+        tasks_from: verify_docker
