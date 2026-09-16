@@ -6,6 +6,51 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 Versionnement : [SemVer](https://semver.org/lang/fr/). Les versions correspondent aux
 tags Git du dépôt.
 
+## [2.0.1] — Non publiée (proposée, en attente d'autorisation de tag)
+
+Correction du contrat de privilèges, suite à l'audit croisé
+`grav-sites-ops` × `ansible-role-grav-site` (premier déploiement réel de
+`grav-platform-docs`, 2026-09-16). Rétrocompatible : aucune interface
+publique (variable, structure de fichiers déployés) n'est rompue.
+
+### Corrigé
+
+- `tasks/docker.yml` : le rôle dépendait silencieusement de
+  `ansible_facts['os_family']` / `architecture` / `distribution` /
+  `distribution_release` sans jamais les gathered lui-même — un appelant en
+  `gather_facts: false` avec `grav_manage_docker: true` (sa valeur par
+  défaut) échouait sur une variable indéfinie. Ajout d'une collecte de
+  faits **ciblée et conditionnelle** (`gather_subset: distribution,
+  hardware`), qui ne s'exécute que si ces faits sont absents — aucun
+  `gather_facts: true` global imposé.
+- `tasks/deploy.yml` : `grav.env` (contenait potentiellement des valeurs
+  sensibles, mode `0600`) n'avait jamais de propriétaire explicite —
+  correction de l'écart documenté-mais-jamais-appliqué REQ-027. `owner:
+  root, group: root` désormais explicite sur `docker-compose.yml` et
+  `grav.env`.
+- `tasks/directories.yml` : `grav_base_directory` (racine de l'instance,
+  ex. `/opt/<site>`) n'avait pas de propriétaire explicite. `owner: root,
+  group: root` désormais explicite.
+
+### Ajouté
+
+- `tasks/privilege_guard.yml` : contrôle précoce et explicite (`id -u`,
+  sans dépendre du fact optionnel `ansible_user_uid`, compatible
+  `gather_facts: false`), avant toute tâche privilégiée (Docker,
+  `grav_base_directory`, secrets, fichiers privilégiés du conteneur). En
+  l'absence de `become: true` côté appelant, échoue immédiatement avec un
+  message actionnable au lieu d'un `Permission denied` / `Operation not
+  permitted` OS brut plus loin dans l'exécution. Confirme le contrat
+  historique du rôle (README "Prérequis") : c'est à l'appelant de fournir
+  `become: true` — le rôle n'escalade jamais ses propres privilèges.
+- `molecule/install_gather_facts_false/` : scénario reproduisant la
+  combinaison ayant échoué en production (`gather_facts: false` +
+  `grav_manage_docker: true` + faits initialement absents) et prouvant la
+  collecte ciblée.
+- `tests/test_privilege_guard.yml` : prouve que `tasks/privilege_guard.yml`
+  échoue de façon contrôlée et lisible sans `become`, sans jamais avancer
+  dans les tâches privilégiées suivantes.
+
 ## [2.0.0] — 2026-09-04
 
 Version majeure : refonte du rôle selon le contrat architectural approuvé (v1.0.1),
