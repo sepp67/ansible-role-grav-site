@@ -38,6 +38,16 @@
          or _grav_prev_state.get('digest', '') != grav_digest
          or _grav_prev_state.get('effective_reference', '') != _grav_effective_reference }}
 
+# Propriétaire volontairement NON forcé sur les 3 fichiers de traçabilité
+# ci-dessous (audit privilèges 2026-09, contrat v2.0.1) : contrairement à
+# grav_base_directory/secrets/grav.env (données sensibles ou montées dans
+# le conteneur), ces fichiers sont de la métadonnée de déploiement sans
+# enjeu de sécurité — leur propriétaire reste l'utilisateur Ansible
+# effectif (root pour une invocation complète du rôle, soumise à
+# tasks/privilege_guard.yml ; l'utilisateur de test pour un rejeu isolé de
+# CE SEUL fichier via `tasks_from: version`, comme tests/test_traceability.yml,
+# qui n'a jamais eu besoin de root et ne doit pas en dépendre).
+#
 # .deployed_version : une ligne, la référence Docker EFFECTIVE actuellement
 # déployée ("image:version" sans digest, "image@digest" avec). Artefact de
 # compatibilité — ne pilote plus aucune détection.
