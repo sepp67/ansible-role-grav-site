@@ -3,6 +3,22 @@
 # officiel Docker. Périmètre volontairement limité à Debian/Ubuntu (voir
 # README.md "Systèmes supportés").
 
+# Seul consommateur de facts du rôle (os_family/distribution/
+# distribution_release/architecture, ci-dessous et dans les tâches
+# suivantes). Ciblé et conditionnel : ne gathère que si l'appelant a
+# tourné en gather_facts:false (ou un gather_facts filtré n'ayant pas
+# retenu ces clés) — un appelant en gather_facts:true par défaut n'est
+# jamais re-gathered ici (audit privilèges 2026-09 : ce fichier dépendait
+# silencieusement de facts jamais garantis par le rôle lui-même).
+- name: "Collecter les faits système minimaux si absents (compatible gather_facts: false)"
+  ansible.builtin.setup:
+    gather_subset:
+      - "!all"
+      - "!min"
+      - "distribution"
+      - "hardware"
+  when: ansible_facts['os_family'] is not defined
+
 - name: "Vérifier que la famille d'OS est supportée (Debian/Ubuntu)"
   ansible.builtin.assert:
     that:
