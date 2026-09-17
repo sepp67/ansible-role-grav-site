@@ -1,22 +1,48 @@
-
-### `ansible-role-grav-site/CLAUDE.md`
-
-```markdown
 # Instructions locales — ansible-role-grav-site
 
-Lire d’abord le fichier `../CLAUDE.md`.
+Avant toute action, lire le fichier `../CLAUDE.md`.
 
-Ce dépôt fournit un rôle Ansible générique.
+Ce dépôt fournit le mécanisme Ansible atomique de déploiement d'une instance
+Grav.
 
-Principes :
+## Invariants locaux
 
-- utiliser les modules Ansible plutôt que des commandes shell lorsque possible ;
-- conserver l’idempotence ;
-- utiliser `no_log: true` pour les tâches manipulant des secrets ;
-- exiger des tags d’image explicites ;
-- ne jamais utiliser `latest` par défaut ;
-- ne jamais modifier les données persistantes existantes ;
-- valider toutes les variables structurantes avec `assert`;
-- tester un premier déploiement, un second passage idempotent et une mise à jour.
+- traiter une seule instance Grav par invocation ;
+- conserver l'idempotence ;
+- utiliser les modules Ansible plutôt que des commandes shell lorsque cela est
+  possible ;
+- protéger avec `no_log: true` toute tâche susceptible de manipuler un secret ;
+- ne jamais journaliser une valeur sensible ;
+- ne jamais orchestrer plusieurs sites ni embarquer un inventaire de
+  production ;
+- ne pas réimplémenter les fonctions de `grav-runtime` ;
+- préserver les données persistantes existantes lors d'un redéploiement ;
+- valider les variables structurantes avant toute mutation ;
+- déployer uniquement une référence d'image explicite reçue en paramètre ;
+- ne jamais utiliser une étiquette flottante telle que `latest`.
 
-Le rôle orchestre le runtime mais ne doit pas réimplémenter ses fonctions.
+La configuration multi-instance, les versions par site et les secrets
+opérateur appartiennent à `grav-sites-ops`.
+
+## Avant une modification
+
+Consulter au minimum :
+
+- `README.md` ;
+- `defaults/` ;
+- `tasks/` ;
+- `templates/` ;
+- `docs/` ;
+- les scénarios et contrôles automatisés présents dans le dépôt.
+
+## Contrôles spécifiques
+
+- validation des variables et préflight avant mutation ;
+- premier déploiement ;
+- second passage idempotent ;
+- mise à jour vers une autre référence d'image ;
+- rollback lorsque le changement le permet ;
+- healthcheck et vérifications post-déploiement ;
+- traçabilité de la référence déclarée et effectivement déployée ;
+- absence de fuite de secrets dans les sorties.
+
